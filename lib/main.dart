@@ -1,3 +1,5 @@
+import 'dart:async'; 
+import 'dart:math' as math; 
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,29 +9,25 @@ import 'package:latlong2/latlong.dart';
 import 'package:flutter_map_cache/flutter_map_cache.dart';
 import 'package:dio/dio.dart';
 import 'package:dio_cache_interceptor/dio_cache_interceptor.dart'; 
-// --- NEW IMPORTS FOR OFFLINE STORAGE ---
 import 'package:dio_cache_interceptor_file_store/dio_cache_interceptor_file_store.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:flutter_compass/flutter_compass.dart';
 
-// IMPORT YOUR SHEET SERVICE
 import 'sheet_service.dart'; 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // 1. Get a safe folder on the phone to store map tiles
   final dir = await getApplicationDocumentsDirectory();
   final cachePath = '${dir.path}/map_tiles';
-  
-  // 2. Create the File Store (Persists on Disk)
   final cacheStore = FileCacheStore(cachePath);
 
-  // 3. Pass the store to the app
   runApp(MyApp(cacheStore: cacheStore));
 }
 
 class MyApp extends StatelessWidget {
-  final CacheStore cacheStore; // Store is passed down
+  final CacheStore cacheStore;
 
   const MyApp({super.key, required this.cacheStore});
 
@@ -42,13 +40,13 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: MapScreen(cacheStore: cacheStore), // Pass it to MapScreen
+      home: MapScreen(cacheStore: cacheStore),
     );
   }
 }
 
 class MapScreen extends StatefulWidget {
-  final CacheStore cacheStore; // Receive it here
+  final CacheStore cacheStore;
   const MapScreen({super.key, required this.cacheStore});
 
   @override
@@ -59,6 +57,9 @@ class _MapScreenState extends State<MapScreen> {
   final MapController _mapController = MapController();
   final TextEditingController _searchController = TextEditingController();
   
+  // --- NEW: FOCUS NODE TO CONTROL KEYBOARD ---
+  final FocusNode _searchFocusNode = FocusNode(); 
+  
   List<dynamic> _allLcps = [];
   List<dynamic> _searchResults = []; 
   List<Marker> _markers = [];
@@ -67,18 +68,33 @@ class _MapScreenState extends State<MapScreen> {
   bool _isSearching = false;
   bool _isLoading = false; 
 
+  // --- LOCATION & HEADING STATE ---
+  LatLng? _currentLocation;
+  double _currentHeading = 0.0; 
+  StreamSubscription<Position>? _positionStream;
+  StreamSubscription<CompassEvent>? _compassStream; 
+  bool _isFollowingUser = false; 
+
   final LatLng _initialCenter = const LatLng(14.1153, 120.9621);
 
   @override
   void initState() {
     super.initState();
+    // Start data load AND location services
     _loadData();
+    _startLiveLocationUpdates(); 
+  }
+
+  @override
+  void dispose() {
+    _positionStream?.cancel(); 
+    _compassStream?.cancel(); 
+    _searchFocusNode.dispose(); // Clean up focus node
+    super.dispose();
   }
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true); 
-
-    // The SheetService handles CSV caching (offline data)
     List<dynamic> data = await SheetService().fetchLcpData();
 
     if (mounted) {
@@ -88,15 +104,75 @@ class _MapScreenState extends State<MapScreen> {
         _resetToOverview(); 
       });
       
+      // --- FIX 1: VISIBLE LOAD MESSAGE ---
+      // Showing SnackBar AFTER the frame builds to ensure it appears
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(data.isEmpty 
+                ? "Could not load data. Check internet." 
+                : "✅ Success! Loaded ${data.length} NAP boxes."),
+            backgroundColor: data.isEmpty ? Colors.red : Colors.green[700],
+            duration: const Duration(seconds: 4), // Longer duration
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      });
+    }
+  }
+
+  // --- LIVE LOCATION & COMPASS ENGINE ---
+  Future<void> _startLiveLocationUpdates() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return;
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return;
+    }
+    
+    // 1. Listen to GPS Position
+    const LocationSettings locationSettings = LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 3, 
+    );
+
+    _positionStream = Geolocator.getPositionStream(locationSettings: locationSettings).listen(
+      (Position? position) {
+        if (position != null) {
+          LatLng newPos = LatLng(position.latitude, position.longitude);
+          if (mounted) {
+            setState(() {
+              _currentLocation = newPos;
+            });
+            if (_isFollowingUser) {
+              _mapController.move(newPos, 17.0);
+            }
+          }
+        }
+      },
+    );
+
+    // 2. Listen to Compass Heading
+    _compassStream = FlutterCompass.events?.listen((CompassEvent event) {
+      double? heading = event.heading;
+      if (heading != null && mounted) {
+        setState(() {
+          _currentHeading = heading;
+        });
+      }
+    });
+  }
+
+  void _recenterOnUser() {
+    if (_currentLocation != null) {
+      setState(() => _isFollowingUser = true); 
+      _mapController.move(_currentLocation!, 17.0);
+    } else {
+      _startLiveLocationUpdates();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(data.isEmpty 
-              ? "Loaded offline data." 
-              : "Map updated! Loaded ${data.length} NAP boxes."),
-          backgroundColor: data.isEmpty ? Colors.orange : Colors.green[700],
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
+        const SnackBar(content: Text("Waiting for GPS signal..."), duration: Duration(seconds: 1)),
       );
     }
   }
@@ -120,7 +196,10 @@ class _MapScreenState extends State<MapScreen> {
       _selectedLcp = null;
       _searchResults.clear();
       _isSearching = false;
+      _isFollowingUser = false; 
     });
+    // Ensure keyboard is down
+    _searchFocusNode.unfocus();
   }
 
   void _generateOverviewMarkers(List<dynamic> lcps) {
@@ -147,10 +226,13 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _focusOnLcp(dynamic lcp) {
-    FocusScope.of(context).unfocus(); 
+    // Hide keyboard immediately
+    _searchFocusNode.unfocus();
+    
     setState(() {
       _isSearching = false;
       _selectedLcp = lcp;
+      _isFollowingUser = false; 
     });
 
     List<Marker> npMarkers = [];
@@ -218,7 +300,6 @@ class _MapScreenState extends State<MapScreen> {
           );
        }
     }
-    
     _showDetailedSheet(lcp);
   }
 
@@ -284,7 +365,6 @@ class _MapScreenState extends State<MapScreen> {
                       _buildDetailCard("Distance", details['Distance']),
                     ],
                   ),
-
                   const SizedBox(height: 20),
                   _buildSectionTitle("Coordinates", themeColor),
                   ...lcp['nps'].map<Widget>((np) => ListTile(
@@ -310,7 +390,12 @@ class _MapScreenState extends State<MapScreen> {
           },
         );
       },
-    );
+    ).whenComplete(() {
+      // --- FIX 2: PREVENT KEYBOARD POPUP ---
+      // When the sheet closes, we explicitly tell the focus system:
+      // "Do NOT give focus back to the text field."
+      _searchFocusNode.unfocus();
+    });
   }
 
   Widget _buildSectionTitle(String title, Color color) {
@@ -362,6 +447,16 @@ class _MapScreenState extends State<MapScreen> {
     _generateOverviewMarkers(filtered);
   }
 
+  void _onMapInteraction(MapEvent event) {
+    if (event is MapEventMove && event.source != MapEventSource.mapController) {
+      if (_isFollowingUser) {
+        setState(() => _isFollowingUser = false);
+      }
+      // Ensure keyboard stays hidden on map drag
+      _searchFocusNode.unfocus();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -373,19 +468,19 @@ class _MapScreenState extends State<MapScreen> {
             options: MapOptions(
               initialCenter: _initialCenter,
               initialZoom: 13.0,
+              onMapEvent: _onMapInteraction, 
               interactionOptions: const InteractionOptions(flags: InteractiveFlag.all & ~InteractiveFlag.rotate),
               onTap: (_, __) {
                  if (_isSearching) setState(() => _isSearching = false);
-                 FocusScope.of(context).unfocus();
+                 _searchFocusNode.unfocus();
               },
             ),
             children: [
-              // --- OFFLINE TILE LAYER ---
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.davepatrick.napboxlocator',
                 tileProvider: CachedTileProvider(
-                  store: widget.cacheStore, // <--- SAVES TO DISK (Offline Mode)
+                  store: widget.cacheStore, 
                   maxStale: const Duration(days: 365), 
                 ),
               ),
@@ -415,9 +510,44 @@ class _MapScreenState extends State<MapScreen> {
                   },
                 ),
               ),
+              
+              // COMPASS MARKER
+              if (_currentLocation != null)
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: _currentLocation!,
+                      width: 50,
+                      height: 50,
+                      child: Transform.rotate(
+                        angle: (_currentHeading * (math.pi / 180)),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Container(
+                              width: 30,
+                              height: 30,
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [BoxShadow(blurRadius: 4, color: Colors.black38)],
+                              ),
+                            ),
+                            const Icon(
+                              Icons.navigation, 
+                              color: Colors.blue,
+                              size: 24,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
 
+          // SEARCH BAR
           Positioned(
             top: 50, left: 15, right: 15,
             child: Column(
@@ -426,6 +556,7 @@ class _MapScreenState extends State<MapScreen> {
                   elevation: 4,
                   child: TextField(
                     controller: _searchController,
+                    focusNode: _searchFocusNode, // <--- ASSIGN FOCUS NODE
                     decoration: InputDecoration(
                       hintText: "Search LCP, Site, or 'OLT 1'...",
                       prefixIcon: const Icon(Icons.search),
@@ -491,10 +622,22 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
           
+          Positioned(
+            top: 130, right: 15,
+            child: FloatingActionButton.small(
+              heroTag: "gps_btn",
+              backgroundColor: _isFollowingUser ? Colors.blue : Colors.white, 
+              onPressed: _recenterOnUser,
+              child: Icon(Icons.my_location, 
+                color: _isFollowingUser ? Colors.white : Colors.black87),
+            ),
+          ),
+
           if (_selectedLcp != null && !_isSearching)
             Positioned(
               bottom: 20, right: 20,
               child: FloatingActionButton.extended(
+                heroTag: "reset_btn",
                 onPressed: () {
                    _resetToOverview();
                    _mapController.move(_initialCenter, 13.0);

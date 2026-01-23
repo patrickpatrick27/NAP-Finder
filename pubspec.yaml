@@ -20,8 +20,12 @@ dependencies:
   flutter_map_cache: ^1.4.0
   dio: ^5.4.0
   dio_cache_interceptor: ^3.5.0
-  dio_cache_interceptor_file_store: ^1.2.3  # <--- NEW: For saving map tiles to disk
-  path_provider: ^2.1.2                     # <--- NEW: To find where to save files
+  dio_cache_interceptor_file_store: ^1.2.3  # Offline Storage
+  path_provider: ^2.1.2                     # File Paths
+
+  # --- Location Services (NEW) ---
+  geolocator: ^10.1.0                       # <--- ADD THIS
+  flutter_compass: ^0.8.0
 
   # --- Google Sheets Integration ---
   http: ^1.2.0               
