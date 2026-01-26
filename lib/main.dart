@@ -78,6 +78,7 @@ class _MainScreenState extends State<MainScreen> {
     _startLiveLocationUpdates();
     _checkForShorebirdUpdate();
     
+    // Check for native updates (APK)
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) GithubUpdateService.checkForUpdate(context);
     });
@@ -162,7 +163,6 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // We use IndexedStack to keep the Map alive when switching tabs
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
@@ -241,7 +241,6 @@ class _MapTabState extends State<MapTab> {
   @override
   void initState() {
     super.initState();
-    // Initialize markers with the data passed from parent
     if (widget.allLcps.isNotEmpty) {
       _generateOverviewMarkers(widget.allLcps);
     }
@@ -250,11 +249,9 @@ class _MapTabState extends State<MapTab> {
   @override
   void didUpdateWidget(MapTab oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // If data updated in parent, refresh markers
     if (widget.allLcps != oldWidget.allLcps) {
       _generateOverviewMarkers(widget.allLcps);
     }
-    // Handle Live Location following
     if (_isFollowingUser && widget.currentLocation != null) {
       _mapController.move(widget.currentLocation!, 17.0);
     }
@@ -309,7 +306,6 @@ class _MapTabState extends State<MapTab> {
       _isFollowingUser = false;
     });
 
-    // Generate detail markers for this specific LCP
     List<Marker> npMarkers = [];
     List<LatLng> points = [];
     Color oltColor = _getOltColor(lcp['olt_id']);
@@ -323,7 +319,7 @@ class _MapTabState extends State<MapTab> {
           width: 80,
           height: 60,
           child: GestureDetector(
-            onTap: () => DetailedSheet.show(context, lcp), // Reusable Sheet
+            onTap: () => DetailedSheet.show(context, lcp),
             child: Column(
               children: [
                 Container(
@@ -345,7 +341,6 @@ class _MapTabState extends State<MapTab> {
 
     setState(() => _markers = npMarkers);
     
-    // Zoom Logic
     if (points.isNotEmpty) {
        double minLat = points.first.latitude;
        double maxLat = points.first.latitude;
@@ -553,7 +548,7 @@ class _MapTabState extends State<MapTab> {
   }
 }
 
-// --- TAB 2: THE LIST (Grouped by Site -> OLT) ---
+// --- TAB 2: THE LIST (Strictly Separated by Site -> OLT) ---
 class ListTab extends StatefulWidget {
   final List<dynamic> allLcps;
   final bool isLoading;
@@ -571,7 +566,7 @@ class ListTab extends StatefulWidget {
 }
 
 class _ListTabState extends State<ListTab> {
-  // Helper to get grouped data structure
+  // Logic to Group Data: Site Name (Map Key) -> OLT ID (Map Key) -> List of LCPs
   Map<String, Map<int, List<dynamic>>> _getGroupedData() {
     Map<String, Map<int, List<dynamic>>> grouped = {};
 
@@ -579,16 +574,17 @@ class _ListTabState extends State<ListTab> {
       String siteName = lcp['site_name'] ?? 'Unknown Site';
       int oltId = lcp['olt_id'] ?? 0;
 
-      // Ensure site exists
+      // 1. Create Site Folder if not exists (e.g., TGY001, IDC001)
       if (!grouped.containsKey(siteName)) {
         grouped[siteName] = {};
       }
       
-      // Ensure OLT exists within site
+      // 2. Create OLT Sub-folder if not exists (e.g., OLT 1, OLT 2)
       if (!grouped[siteName]!.containsKey(oltId)) {
         grouped[siteName]![oltId] = [];
       }
 
+      // 3. Add the box to that folder
       grouped[siteName]![oltId]!.add(lcp);
     }
     return grouped;
@@ -624,7 +620,7 @@ class _ListTabState extends State<ListTab> {
     }
 
     final groupedData = _getGroupedData();
-    // Sort Site Names (TGY001, etc.)
+    // Sort Site Names alphabetically (TGY001, IDC001, etc.)
     final sortedSites = groupedData.keys.toList()..sort();
 
     return Scaffold(
@@ -635,36 +631,61 @@ class _ListTabState extends State<ListTab> {
         ],
       ),
       body: ListView.builder(
-        padding: const EdgeInsets.only(bottom: 80),
+        padding: const EdgeInsets.only(bottom: 80, top: 10),
         itemCount: sortedSites.length,
         itemBuilder: (context, index) {
           String siteName = sortedSites[index];
           Map<int, List<dynamic>> oltsInSite = groupedData[siteName]!;
           List<int> sortedOlts = oltsInSite.keys.toList()..sort();
 
+          // Calculates total NAP boxes for this site (to show in the header)
+          int totalBoxes = oltsInSite.values.fold(0, (sum, list) => sum + list.length);
+
           return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            elevation: 2,
+            margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             child: ExpansionTile(
-              leading: const Icon(Icons.apartment, color: Colors.blueGrey),
-              title: Text(siteName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blueGrey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.apartment, color: Colors.blueGrey),
+              ),
+              title: Text(
+                siteName, 
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)
+              ),
+              subtitle: Text(
+                "$totalBoxes Boxes across ${sortedOlts.length} OLTs",
+                style: TextStyle(color: Colors.grey[600], fontSize: 12)
+              ),
+              childrenPadding: const EdgeInsets.only(left: 10, bottom: 10),
               children: sortedOlts.map((oltId) {
                 Color oltColor = _getOltColor(oltId);
                 List<dynamic> lcps = oltsInSite[oltId]!;
                 
+                // --- LEVEL 2: OLT DROPDOWN (Inside the Site) ---
                 return ExpansionTile(
                   leading: Icon(Icons.router, color: oltColor),
-                  title: Text("OLT $oltId", style: TextStyle(color: oltColor, fontWeight: FontWeight.bold)),
+                  title: Text(
+                    "OLT $oltId", 
+                    style: TextStyle(color: oltColor, fontWeight: FontWeight.bold)
+                  ),
                   subtitle: Text("${lcps.length} NAPs"),
                   children: lcps.map((lcp) {
+                    
+                    // --- LEVEL 3: THE ACTUAL ITEMS ---
                     return ListTile(
                       dense: true,
-                      contentPadding: const EdgeInsets.only(left: 40, right: 20),
+                      contentPadding: const EdgeInsets.only(left: 20, right: 20),
                       leading: const Icon(Icons.location_on, size: 18),
                       title: Text(lcp['lcp_name'], style: const TextStyle(fontWeight: FontWeight.bold)),
                       subtitle: Text(lcp['details']?['Address'] ?? lcp['site_name']),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 12),
                       onTap: () {
-                         // Reuse the exact same sheet logic
                          DetailedSheet.show(context, lcp);
                       },
                     );
