@@ -1,64 +1,88 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
-import 'package:dio/dio.dart'; // Handles the download
+import 'package:dio/dio.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart'; // Finds where to save the file
-import 'package:flutter_app_installer/flutter_app_installer.dart'; // Triggers the install screen
+import 'package:path_provider/path_provider.dart';
+import 'package:flutter_app_installer/flutter_app_installer.dart';
 
 class GithubUpdateService {
   static const String _owner = "patrickpatrick27";
   static const String _repo = "nap_locator";
   
-  // Keep your token here
-  static const String _token = "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"; 
+  // NOTE: For Public Repos, no token is needed!
+  // This avoids the 404/403 errors and keeps your code safe.
 
   static Future<void> checkForUpdate(BuildContext context) async {
+    print("🔍 [UpdateService] Checking for updates (Public Repo)...");
+    
     try {
       PackageInfo packageInfo = await PackageInfo.fromPlatform();
       String currentVersion = packageInfo.version;
+      print("📱 [UpdateService] Current App Version: $currentVersion");
 
+      // No headers needed for public repos
       final response = await http.get(
         Uri.parse('https://api.github.com/repos/$_owner/$_repo/releases/latest'),
-        headers: {
-          'Authorization': 'Bearer $_token',
-          'Accept': 'application/vnd.github.v3+json',
-        },
       );
+      
+      print("🌐 [UpdateService] GitHub Status Code: ${response.statusCode}");
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         String tagName = data['tag_name']; 
+        
+        // Remove 'v' if present (v1.0.14 -> 1.0.14)
         String latestVersion = tagName.replaceAll('v', '');
+        print("☁️ [UpdateService] GitHub Version: $latestVersion");
 
         // FIND THE APK URL
         String? apkUrl;
         List<dynamic> assets = data['assets'];
+        print("📦 [UpdateService] Assets found: ${assets.length}");
+        
         for (var asset in assets) {
+          print("   - File: ${asset['name']}");
           if (asset['name'].toString().endsWith('.apk')) {
             apkUrl = asset['browser_download_url']; 
+            print("   ✅ APK Found: $apkUrl");
             break;
           }
         }
 
-        if (_isNewer(latestVersion, currentVersion) && apkUrl != null) {
+        if (apkUrl == null) {
+          print("❌ [UpdateService] Release found, but NO APK file attached!");
+          return;
+        }
+
+        bool isNewer = _isNewer(latestVersion, currentVersion);
+        print("🤔 [UpdateService] Is $latestVersion > $currentVersion? $isNewer");
+
+        if (isNewer) {
+          print("🚀 [UpdateService] Triggering Update Dialog!");
           _showUpdateDialog(context, latestVersion, apkUrl);
         }
+      } else {
+        print("❌ [UpdateService] API Error: ${response.body}");
       }
     } catch (e) {
-      print("Update check error: $e");
+      print("❌ [UpdateService] CRASH: $e");
     }
   }
 
   static bool _isNewer(String latest, String current) {
-    List<int> l = latest.split('.').map(int.parse).toList();
-    List<int> c = current.split('.').map(int.parse).toList();
+    try {
+      List<int> l = latest.split('.').map(int.parse).toList();
+      List<int> c = current.split('.').map(int.parse).toList();
 
-    for (int i = 0; i < l.length; i++) {
-      if (i >= c.length) return true;
-      if (l[i] > c[i]) return true;
-      if (l[i] < c[i]) return false;
+      for (int i = 0; i < l.length; i++) {
+        if (i >= c.length) return true;
+        if (l[i] > c[i]) return true;
+        if (l[i] < c[i]) return false;
+      }
+    } catch (e) {
+      print("⚠️ [UpdateService] Version parse error: $e");
     }
     return false;
   }
@@ -89,8 +113,6 @@ class _UpdateProgressDialogState extends State<_UpdateProgressDialog> {
   String _status = "Ready to download";
   double _progress = 0.0;
   bool _isDownloading = false;
-  
-  // New tools for the download/install process
   final Dio _dio = Dio();
   final FlutterAppInstaller _installer = FlutterAppInstaller();
 
@@ -101,11 +123,9 @@ class _UpdateProgressDialogState extends State<_UpdateProgressDialog> {
     });
 
     try {
-      // 1. Get a temporary place to save the APK
       Directory tempDir = await getTemporaryDirectory();
       String savePath = "${tempDir.path}/update.apk";
 
-      // 2. Download with Dio (gives us progress events)
       await _dio.download(
         widget.apkUrl, 
         savePath,
@@ -119,11 +139,9 @@ class _UpdateProgressDialogState extends State<_UpdateProgressDialog> {
         },
       );
 
-      // 3. Install
       setState(() => _status = "Installing...");
       await _installer.installApk(filePath: savePath);
       
-      // Close dialog if the install screen launches successfully
       if (mounted) Navigator.pop(context);
 
     } catch (e) {
