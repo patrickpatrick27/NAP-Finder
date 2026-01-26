@@ -2,7 +2,7 @@ name: training
 description: "A new Flutter project."
 publish_to: 'none' 
 
-version: 1.0.1+1
+version: 1.0.6+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -28,7 +28,7 @@ dependencies:
   dio_cache_interceptor_file_store: ^1.2.3
   path_provider: ^2.1.2
 
-  # --- Location Services (NEW) ---
+  # --- Location Services ---
   geolocator: ^10.1.0
   flutter_compass: ^0.8.0
 
@@ -36,13 +36,17 @@ dependencies:
   http: ^1.2.0                             
   shared_preferences: ^2.2.2 
 
+  # --- Update Utilities (NEW) ---
+  package_info_plus: ^5.0.1
+  url_launcher: ^6.2.5
+
   # --- UI Icons ---
   cupertino_icons: ^1.0.8
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0
+  flutter_lints: ^3.0.0
   # --- Icon Generator ---
   flutter_launcher_icons: ^0.13.1
 
@@ -57,4 +61,4 @@ flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
   image_path: "assets/icon.png"
-  min_sdk_android: 21 # Recommended for modern Android
+  min_sdk_android: 21

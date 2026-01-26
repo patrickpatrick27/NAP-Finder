@@ -7,17 +7,16 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map_cache/flutter_map_cache.dart';
-import 'package:dio/dio.dart';
-import 'package:dio_cache_interceptor/dio_cache_interceptor.dart'; 
-import 'package:dio_cache_interceptor_file_store/dio_cache_interceptor_file_store.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_compass/flutter_compass.dart';
+
 // --- SHOREBIRD IMPORTS ---
 import 'package:shorebird_code_push/shorebird_code_push.dart';
 import 'package:restart_app/restart_app.dart'; 
 
-import 'sheet_service.dart'; 
+import 'sheet_service.dart';
+import 'update_service.dart'; // Ensure you created this file!
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -61,7 +60,7 @@ class _MapScreenState extends State<MapScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode(); 
   
-  // --- UPDATED: SHOREBIRD V2 INSTANCE ---
+  // --- SHOREBIRD V2 INSTANCE ---
   final _updater = ShorebirdUpdater();
 
   List<dynamic> _allLcps = [];
@@ -86,7 +85,15 @@ class _MapScreenState extends State<MapScreen> {
     super.initState();
     _loadData();
     _startLiveLocationUpdates(); 
-    _checkForShorebirdUpdate(); // <--- CHECK FOR APP UPDATES
+    
+    // 1. Check for Shorebird Patches (Instant Code Fixes)
+    _checkForShorebirdUpdate(); 
+
+    // 2. Check for GitHub APK Updates (Full Reinstalls)
+    // Delayed slightly to let the UI settle
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) GithubUpdateService.checkForUpdate(context);
+    });
   }
 
   @override
@@ -97,26 +104,21 @@ class _MapScreenState extends State<MapScreen> {
     super.dispose();
   }
 
-  // --- 🆕 UPDATED SHOREBIRD LOGIC (V2 COMPATIBLE) ---
+  // --- SHOREBIRD LOGIC (v2) ---
   Future<void> _checkForShorebirdUpdate() async {
     try {
-      // 1. Check for active updates
       final status = await _updater.checkForUpdate();
-      
       if (status == UpdateStatus.outdated) {
-        print("📲 New Update Found! Downloading...");
-        
-        // 2. Download the update
+        print("📲 New Shorebird Patch Found! Downloading...");
         await _updater.update();
 
         if (mounted) {
-          // 3. Show Popup when ready
           showDialog(
             context: context,
-            barrierDismissible: false, // Force them to choose
+            barrierDismissible: false, 
             builder: (context) => AlertDialog(
-              title: const Text("Update Ready 🚀"),
-              content: const Text("A new version of the app has been downloaded.\n\nPlease restart the app to apply the changes."),
+              title: const Text("Patch Ready 🚀"),
+              content: const Text("A quick fix has been downloaded.\nPlease restart the app to apply."),
               actions: [
                 TextButton(
                   onPressed: () {
@@ -128,12 +130,9 @@ class _MapScreenState extends State<MapScreen> {
             ),
           );
         }
-      } else {
-        print("✅ App is up to date (Status: $status)");
       }
     } catch (error) {
-      // This happens if running in Debug mode or no internet
-      print("Shorebird update check skipped: $error");
+      print("Shorebird check skipped (Debug/No Internet)");
     }
   }
 
@@ -148,7 +147,6 @@ class _MapScreenState extends State<MapScreen> {
         _resetToOverview(); 
       });
       
-      // Data Load Popup
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -164,7 +162,7 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  // --- LIVE LOCATION & COMPASS ENGINE ---
+  // --- LIVE LOCATION ENGINE ---
   Future<void> _startLiveLocationUpdates() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) return;
