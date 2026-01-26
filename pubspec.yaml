@@ -22,6 +22,7 @@ dependencies:
   restart_app: ^1.3.2        # Requires modern web dependencies
   package_info_plus: ^8.0.0  # <--- UPDATED: Fixes conflict with restart_app
   url_launcher: ^6.3.0       # <--- UPDATED: To match newer standards
+  ota_update: ^5.1.0
 
   # --- Maps & Location ---
   flutter_map: ^6.0.0

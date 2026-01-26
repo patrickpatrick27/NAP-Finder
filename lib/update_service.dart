@@ -1,15 +1,15 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/material.dart';
+import 'package:ota_update/ota_update.dart'; // IMPORT THIS
 
 class GithubUpdateService {
   static const String _owner = "patrickpatrick27";
   static const String _repo = "nap_locator";
   
-  // PASTE YOUR READ-ONLY TOKEN HERE
-  static const String _token = "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"; 
+  // Keep your token here
+  static const String _token = "YOUR_GITHUB_TOKEN_HERE"; 
 
   static Future<void> checkForUpdate(BuildContext context) async {
     try {
@@ -27,15 +27,21 @@ class GithubUpdateService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         String tagName = data['tag_name']; 
-        String downloadUrl = data['html_url']; // This goes to the release page
-        
-        // If your tag is v1.0.0, this makes it 1.0.0
         String latestVersion = tagName.replaceAll('v', '');
 
-        if (_isNewer(latestVersion, currentVersion)) {
-          // If the Github asset is an APK, try to find direct link
-          // (Optional: loop through data['assets'] to find .apk)
-          _showUpdateDialog(context, latestVersion, downloadUrl);
+        // FIND THE APK URL
+        // GitHub releases have a list of 'assets'. We need the one ending in .apk
+        String? apkUrl;
+        List<dynamic> assets = data['assets'];
+        for (var asset in assets) {
+          if (asset['name'].toString().endsWith('.apk')) {
+            apkUrl = asset['browser_download_url']; // This is the direct download link
+            break;
+          }
+        }
+
+        if (_isNewer(latestVersion, currentVersion) && apkUrl != null) {
+          _showUpdateDialog(context, latestVersion, apkUrl);
         }
       }
     } catch (e) {
@@ -55,26 +61,102 @@ class GithubUpdateService {
     return false;
   }
 
-  static void _showUpdateDialog(BuildContext context, String version, String url) {
+  static void _showUpdateDialog(BuildContext context, String version, String apkUrl) {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text("New Update Available! 📲"),
-        content: Text("Version $version is ready.\n\nThis update requires a full reinstall."),
-        actions: [
+      builder: (context) {
+        return _UpdateProgressDialog(version: version, apkUrl: apkUrl);
+      },
+    );
+  }
+}
+
+// --- NEW WIDGET: HANDLES DOWNLOAD & INSTALL ---
+class _UpdateProgressDialog extends StatefulWidget {
+  final String version;
+  final String apkUrl;
+
+  const _UpdateProgressDialog({required this.version, required this.apkUrl});
+
+  @override
+  State<_UpdateProgressDialog> createState() => _UpdateProgressDialogState();
+}
+
+class _UpdateProgressDialogState extends State<_UpdateProgressDialog> {
+  String _status = "Ready to download";
+  double _progress = 0.0;
+  bool _isDownloading = false;
+
+  void _startDownload() {
+    setState(() {
+      _isDownloading = true;
+      _status = "Downloading...";
+    });
+
+    try {
+      // THIS IS THE MAGIC LINE
+      OtaUpdate()
+          .execute(widget.apkUrl, destinationFilename: 'nap_finder_update.apk')
+          .listen(
+        (OtaEvent event) {
+          setState(() {
+             // UPDATE STATUS
+             if (event.status == OtaStatus.DOWNLOADING) {
+               _progress = (int.parse(event.value ?? '0')) / 100;
+               _status = "Downloading: ${event.value}%";
+             } else if (event.status == OtaStatus.INSTALLING) {
+               _status = "Installing...";
+               _progress = 1.0; // 100%
+             } else {
+               _status = event.status.toString();
+             }
+          });
+          
+          // Note: When status is INSTALLING, the system install screen opens automatically.
+        },
+      ).onError((error) {
+        setState(() {
+          _status = "Error: $error";
+          _isDownloading = false;
+        });
+      });
+    } catch (e) {
+      setState(() {
+        _status = "Failed to start: $e";
+        _isDownloading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text("Update to ${widget.version} 📲"),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text("A new version is available. Click update to download and install automatically."),
+          const SizedBox(height: 20),
+          if (_isDownloading) ...[
+            LinearProgressIndicator(value: _progress),
+            const SizedBox(height: 10),
+            Text(_status, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          ],
+        ],
+      ),
+      actions: [
+        if (!_isDownloading)
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text("Later"),
           ),
+        if (!_isDownloading)
           FilledButton(
-            onPressed: () {
-              launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-            },
-            child: const Text("Download"),
+            onPressed: _startDownload,
+            child: const Text("Update Now"),
           ),
-        ],
-      ),
+      ],
     );
   }
 }
