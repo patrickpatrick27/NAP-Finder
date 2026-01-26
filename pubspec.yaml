@@ -49,7 +49,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/lcp_data.json
     - assets/credentials.json
     - shorebird.yaml
 
