@@ -10,6 +10,8 @@ import 'package:flutter_map_cache/flutter_map_cache.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_compass/flutter_compass.dart';
+import 'package:dio_cache_interceptor/dio_cache_interceptor.dart';
+import 'package:dio_cache_interceptor_file_store/dio_cache_interceptor_file_store.dart';
 
 // --- SHOREBIRD IMPORTS ---
 import 'package:shorebird_code_push/shorebird_code_push.dart';
