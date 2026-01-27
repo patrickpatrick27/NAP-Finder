@@ -12,9 +12,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:dio_cache_interceptor/dio_cache_interceptor.dart';
 import 'package:dio_cache_interceptor_file_store/dio_cache_interceptor_file_store.dart';
-import 'package:url_launcher/url_launcher.dart'; // <--- NEW IMPORT
+import 'package:url_launcher/url_launcher.dart'; 
 
-// --- SHOREBIRD IMPORTS ---
 import 'package:shorebird_code_push/shorebird_code_push.dart';
 import 'package:restart_app/restart_app.dart'; 
 
@@ -50,7 +49,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// --- PARENT SCREEN (Holds Data & Tabs) ---
 class MainScreen extends StatefulWidget {
   final CacheStore cacheStore;
   const MainScreen({super.key, required this.cacheStore});
@@ -66,7 +64,6 @@ class _MainScreenState extends State<MainScreen> {
   List<dynamic> _allLcps = [];
   bool _isLoading = true;
 
-  // Shared Location State
   LatLng? _currentLocation;
   double _currentHeading = 0.0;
   StreamSubscription<Position>? _positionStream;
@@ -92,12 +89,22 @@ class _MainScreenState extends State<MainScreen> {
     super.dispose();
   }
 
+  // --- OPTIMIZED LOADING STRATEGY ---
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
-    List<dynamic> data = await SheetService().fetchLcpData();
-    if (mounted) {
+    // 1. Load cache IMMEDIATELY (Instant UI)
+    List<dynamic> cached = await SheetService().loadFromCache();
+    if (cached.isNotEmpty && mounted) {
       setState(() {
-        _allLcps = data;
+        _allLcps = cached;
+        _isLoading = false; 
+      });
+    }
+
+    // 2. Fetch fresh data in background
+    List<dynamic> freshData = await SheetService().fetchLcpData();
+    if (mounted && freshData.isNotEmpty) {
+      setState(() {
+        _allLcps = freshData;
         _isLoading = false;
       });
     }
@@ -168,7 +175,6 @@ class _MainScreenState extends State<MainScreen> {
       body: IndexedStack(
         index: _currentIndex,
         children: [
-          // TAB 1: MAP
           MapTab(
             cacheStore: widget.cacheStore,
             allLcps: _allLcps,
@@ -177,7 +183,6 @@ class _MainScreenState extends State<MainScreen> {
             currentHeading: _currentHeading,
             onRefresh: _loadData,
           ),
-          // TAB 2: LIST
           ListTab(
             allLcps: _allLcps,
             isLoading: _isLoading,
@@ -205,7 +210,6 @@ class _MainScreenState extends State<MainScreen> {
   }
 }
 
-// --- TAB 1: THE MAP ---
 class MapTab extends StatefulWidget {
   final CacheStore cacheStore;
   final List<dynamic> allLcps;
@@ -549,7 +553,7 @@ class _MapTabState extends State<MapTab> {
   }
 }
 
-// --- TAB 2: THE LIST (Strictly Separated by Site -> OLT) ---
+// --- TAB 2: THE LIST ---
 class ListTab extends StatefulWidget {
   final List<dynamic> allLcps;
   final bool isLoading;
@@ -567,7 +571,6 @@ class ListTab extends StatefulWidget {
 }
 
 class _ListTabState extends State<ListTab> {
-  // Logic to Group Data: Site Name (Map Key) -> OLT ID (Map Key) -> List of LCPs
   Map<String, Map<int, List<dynamic>>> _getGroupedData() {
     Map<String, Map<int, List<dynamic>>> grouped = {};
 
@@ -575,17 +578,12 @@ class _ListTabState extends State<ListTab> {
       String siteName = lcp['site_name'] ?? 'Unknown Site';
       int oltId = lcp['olt_id'] ?? 0;
 
-      // 1. Create Site Folder if not exists (e.g., TGY001, IDC001)
       if (!grouped.containsKey(siteName)) {
         grouped[siteName] = {};
       }
-      
-      // 2. Create OLT Sub-folder if not exists (e.g., OLT 1, OLT 2)
       if (!grouped[siteName]!.containsKey(oltId)) {
         grouped[siteName]![oltId] = [];
       }
-
-      // 3. Add the box to that folder
       grouped[siteName]![oltId]!.add(lcp);
     }
     return grouped;
@@ -602,7 +600,7 @@ class _ListTabState extends State<ListTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.isLoading) {
+    if (widget.isLoading && widget.allLcps.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
 
@@ -621,7 +619,6 @@ class _ListTabState extends State<ListTab> {
     }
 
     final groupedData = _getGroupedData();
-    // Sort Site Names alphabetically (TGY001, IDC001, etc.)
     final sortedSites = groupedData.keys.toList()..sort();
 
     return Scaffold(
@@ -639,7 +636,6 @@ class _ListTabState extends State<ListTab> {
           Map<int, List<dynamic>> oltsInSite = groupedData[siteName]!;
           List<int> sortedOlts = oltsInSite.keys.toList()..sort();
 
-          // Calculates total NAP boxes for this site (to show in the header)
           int totalBoxes = oltsInSite.values.fold(0, (sum, list) => sum + list.length);
 
           return Card(
@@ -668,7 +664,6 @@ class _ListTabState extends State<ListTab> {
                 Color oltColor = _getOltColor(oltId);
                 List<dynamic> lcps = oltsInSite[oltId]!;
                 
-                // --- LEVEL 2: OLT DROPDOWN (Inside the Site) ---
                 return ExpansionTile(
                   leading: Icon(Icons.router, color: oltColor),
                   title: Text(
@@ -677,8 +672,6 @@ class _ListTabState extends State<ListTab> {
                   ),
                   subtitle: Text("${lcps.length} NAPs"),
                   children: lcps.map((lcp) {
-                    
-                    // --- LEVEL 3: THE ACTUAL ITEMS ---
                     return ListTile(
                       dense: true,
                       contentPadding: const EdgeInsets.only(left: 20, right: 20),
@@ -770,7 +763,7 @@ class DetailedSheet {
                   ),
                   const SizedBox(height: 20),
                   
-                  // --- COORDINATES SECTION (UPDATED WITH URL LAUNCHER) ---
+                  // --- COORDINATES SECTION ---
                   _buildSectionTitle("Coordinates & Navigation", themeColor),
                   ...lcp['nps'].map<Widget>((np) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -785,7 +778,6 @@ class DetailedSheet {
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          // 1. COPY BUTTON
                           IconButton(
                             icon: const Icon(Icons.copy, size: 20, color: Colors.grey),
                             tooltip: "Copy Coordinates",
@@ -796,7 +788,6 @@ class DetailedSheet {
                               );
                             },
                           ),
-                          // 2. GOOGLE MAPS BUTTON
                           IconButton(
                             icon: const Icon(Icons.directions, size: 24, color: Colors.blue),
                             tooltip: "Get Directions",
@@ -816,11 +807,8 @@ class DetailedSheet {
     );
   }
 
-  // --- NEW: LAUNCH GOOGLE MAPS ---
   static Future<void> _launchMaps(double lat, double lng) async {
-    // Standard Universal Google Maps URL for directions
     final Uri googleUrl = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng');
-    
     try {
       if (!await launchUrl(googleUrl, mode: LaunchMode.externalApplication)) {
          throw 'Could not launch Maps';
