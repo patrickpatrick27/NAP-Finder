@@ -9,6 +9,9 @@ jobs:
   build:
     name: Build APK
     runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
@@ -29,7 +32,6 @@ jobs:
         run: flutter pub get
 
       # --- STEP 1: RESTORE CREDENTIALS.JSON ---
-      # This recreates the file so Flutter can find it during build
       - name: Create Credentials File
         run: |
           mkdir -p assets
