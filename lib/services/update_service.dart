@@ -10,64 +10,41 @@ import 'package:flutter_app_installer/flutter_app_installer.dart';
 class GithubUpdateService {
   static const String _owner = "patrickpatrick27";
   static const String _repo = "nap_locator";
-  
-  // NOTE: For Public Repos, no token is needed!
-  // This avoids the 404/403 errors and keeps your code safe.
 
   static Future<void> checkForUpdate(BuildContext context) async {
-    print("🔍 [UpdateService] Checking for updates (Public Repo)...");
+    print("🔍 [UpdateService] Checking for updates...");
     
     try {
       PackageInfo packageInfo = await PackageInfo.fromPlatform();
       String currentVersion = packageInfo.version;
-      print("📱 [UpdateService] Current App Version: $currentVersion");
 
-      // No headers needed for public repos
       final response = await http.get(
         Uri.parse('https://api.github.com/repos/$_owner/$_repo/releases/latest'),
       );
-      
-      print("🌐 [UpdateService] GitHub Status Code: ${response.statusCode}");
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         String tagName = data['tag_name']; 
-        
-        // Remove 'v' if present (v1.0.14 -> 1.0.14)
         String latestVersion = tagName.replaceAll('v', '');
-        print("☁️ [UpdateService] GitHub Version: $latestVersion");
-
-        // FIND THE APK URL
+        
         String? apkUrl;
         List<dynamic> assets = data['assets'];
-        print("📦 [UpdateService] Assets found: ${assets.length}");
-        
         for (var asset in assets) {
-          print("   - File: ${asset['name']}");
           if (asset['name'].toString().endsWith('.apk')) {
             apkUrl = asset['browser_download_url']; 
-            print("   ✅ APK Found: $apkUrl");
             break;
           }
         }
 
-        if (apkUrl == null) {
-          print("❌ [UpdateService] Release found, but NO APK file attached!");
-          return;
-        }
+        if (apkUrl == null) return;
 
         bool isNewer = _isNewer(latestVersion, currentVersion);
-        print("🤔 [UpdateService] Is $latestVersion > $currentVersion? $isNewer");
-
         if (isNewer) {
-          print("🚀 [UpdateService] Triggering Update Dialog!");
           _showUpdateDialog(context, latestVersion, apkUrl);
         }
-      } else {
-        print("❌ [UpdateService] API Error: ${response.body}");
-      }
+      } 
     } catch (e) {
-      print("❌ [UpdateService] CRASH: $e");
+      print("❌ [UpdateService] Exception: $e");
     }
   }
 
@@ -82,7 +59,7 @@ class GithubUpdateService {
         if (l[i] < c[i]) return false;
       }
     } catch (e) {
-      print("⚠️ [UpdateService] Version parse error: $e");
+      print("⚠️ Version parse error: $e");
     }
     return false;
   }
@@ -98,7 +75,6 @@ class GithubUpdateService {
   }
 }
 
-// --- NEW WIDGET: HANDLES DOWNLOAD & INSTALL ---
 class _UpdateProgressDialog extends StatefulWidget {
   final String version;
   final String apkUrl;
@@ -159,7 +135,7 @@ class _UpdateProgressDialogState extends State<_UpdateProgressDialog> {
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text("A new version is available. Click update to download and install automatically."),
+          const Text("A new version is available."),
           const SizedBox(height: 20),
           if (_isDownloading) ...[
             LinearProgressIndicator(value: _progress),
