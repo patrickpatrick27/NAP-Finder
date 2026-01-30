@@ -36,6 +36,11 @@ android {
                 keyPassword = keystoreProperties["keyPassword"] as String
                 storeFile = file(keystoreProperties["storeFile"] as String)
                 storePassword = keystoreProperties["storePassword"] as String
+                
+                // --- FIX: Enable V1 & V2 Signing ---
+                // This ensures the APK is valid on Android 11+ devices
+                enableV1Signing = true
+                enableV2Signing = true
             }
         }
     }
@@ -43,7 +48,7 @@ android {
     defaultConfig {
         applicationId = "com.example.training"
         
-        // 3. SAFE VERSION LOADING (Prevents crash if pubspec.yaml version is missing)
+        // 3. SAFE VERSION LOADING
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -53,20 +58,19 @@ android {
     buildTypes {
         getByName("debug") {
             // --- DEBUG CONFIGURATION ---
-            // 1. Changes ID to "com.example.training.debug" so it installs separately from release
             applicationIdSuffix = ".debug"
-            
-            // 2. Changes App Name to "NAP Finder (Dev)" so you can tell them apart
             resValue("string", "app_name", "NAP Finder (Dev)")
+            
+            // Explicitly use the debug signing config (good practice)
+            signingConfig = signingConfigs.getByName("debug")
         }
 
         getByName("release") {
             // --- RELEASE CONFIGURATION ---
-            // 1. Keeps original ID "com.example.training"
-            // 2. Sets App Name to real name "NAP Finder"
             resValue("string", "app_name", "NAP Finder")
 
-            // 3. Safe Signing Config Assignment
+            // 4. Safe Signing Config Assignment
+            // If the keys exist, sign it. If not (e.g. testing locally without keys), it remains unsigned.
             if (signingConfigs.findByName("release") != null) {
                 signingConfig = signingConfigs.getByName("release")
             }
