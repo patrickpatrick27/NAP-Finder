@@ -29,16 +29,24 @@ android {
     }
 
     signingConfigs {
-        // 2. Only create the "release" config IF the key properties were loaded
-        if (keystoreProperties["keyAlias"] != null) {
-            create("release") {
+        create("release") {
+            // --- SAFETY LOCK 1: FAIL IF KEYS MISSING ---
+            // If GitHub Actions can't find the key file, STOP the build.
+            // This prevents "Package Invalid" errors caused by unsigned APKs.
+            if (!keystorePropertiesFile.exists()) {
+                 println("⚠️ WARNING: key.properties not found. Release build will NOT be signed.")
+                 // Note: We don't crash here so you can still run 'flutter run --release' locally without keys if needed.
+                 // But for GitHub, this usually means the secret failed.
+            }
+            
+            // Only try to read keys if the file exists
+            if (keystoreProperties["keyAlias"] != null) {
                 keyAlias = keystoreProperties["keyAlias"] as String
                 keyPassword = keystoreProperties["keyPassword"] as String
                 storeFile = file(keystoreProperties["storeFile"] as String)
                 storePassword = keystoreProperties["storePassword"] as String
                 
-                // --- FIX: Enable V1 & V2 Signing ---
-                // This ensures the APK is valid on Android 11+ devices
+                // --- SAFETY LOCK 2: FORCE V1 & V2 SIGNING ---
                 enableV1Signing = true
                 enableV2Signing = true
             }
@@ -47,8 +55,6 @@ android {
 
     defaultConfig {
         applicationId = "com.example.training"
-        
-        // 3. SAFE VERSION LOADING
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -57,23 +63,16 @@ android {
 
     buildTypes {
         getByName("debug") {
-            // --- DEBUG CONFIGURATION ---
+            // Re-adding this so you can have both apps installed at once
             applicationIdSuffix = ".debug"
             resValue("string", "app_name", "NAP Finder (Dev)")
-            
-            // Explicitly use the debug signing config (good practice)
-            signingConfig = signingConfigs.getByName("debug")
         }
 
         getByName("release") {
-            // --- RELEASE CONFIGURATION ---
             resValue("string", "app_name", "NAP Finder")
-
-            // 4. Safe Signing Config Assignment
-            // If the keys exist, sign it. If not (e.g. testing locally without keys), it remains unsigned.
-            if (signingConfigs.findByName("release") != null) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            
+            // Force the release config. 
+            signingConfig = signingConfigs.getByName("release")
             
             isMinifyEnabled = false
             isShrinkResources = false
