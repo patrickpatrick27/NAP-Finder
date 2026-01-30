@@ -37,11 +37,17 @@ jobs:
           mkdir -p assets
           echo "${{ secrets.CREDENTIALS_JSON_BASE64 }}" | base64 --decode > assets/credentials.json
 
-      # --- STEP 2: KEYSTORE SETUP ---
+      # --- STEP 2: KEYSTORE SETUP (Using YOUR Existing Secrets) ---
       - name: Create Key Files
         run: |
-          echo "${{ secrets.KEY_PROPERTIES }}" > android/key.properties
-          echo "${{ secrets.UPLOAD_KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
+          # 1. Decode the Keystore File
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
+          
+          # 2. Create key.properties using your specific secrets
+          echo "storePassword=${{ secrets.ANDROID_STORE_PASSWORD }}" > android/key.properties
+          echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=upload" >> android/key.properties
+          echo "storeFile=upload-keystore.jks" >> android/key.properties
 
       # --- STEP 3: BUILD ---
       - name: Build Release APK
