@@ -18,20 +18,20 @@ class ListTab extends StatefulWidget {
 }
 
 class _ListTabState extends State<ListTab> {
-  Map<String, Map<int, List<dynamic>>> _getGroupedData() {
-    Map<String, Map<int, List<dynamic>>> grouped = {};
+  Map<String, Map<String, List<dynamic>>> _getGroupedData() {
+    Map<String, Map<String, List<dynamic>>> grouped = {};
 
     for (var lcp in widget.allLcps) {
+      String sheetName = lcp['source_sheet'] ?? 'Unknown Sheet';
       String siteName = lcp['site_name'] ?? 'Unknown Site';
-      int oltId = lcp['olt_id'] ?? 0;
 
-      if (!grouped.containsKey(siteName)) {
-        grouped[siteName] = {};
+      if (!grouped.containsKey(sheetName)) {
+        grouped[sheetName] = {};
       }
-      if (!grouped[siteName]!.containsKey(oltId)) {
-        grouped[siteName]![oltId] = [];
+      if (!grouped[sheetName]!.containsKey(siteName)) {
+        grouped[sheetName]![siteName] = [];
       }
-      grouped[siteName]![oltId]!.add(lcp);
+      grouped[sheetName]![siteName]!.add(lcp);
     }
     return grouped;
   }
@@ -66,11 +66,24 @@ class _ListTabState extends State<ListTab> {
     }
 
     final groupedData = _getGroupedData();
-    final sortedSites = groupedData.keys.toList()..sort();
+    final sortedSheets = groupedData.keys.toList()..sort();
+    
+    // Calculate Grand Total
+    int totalNaps = widget.allLcps.length;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("All NAP Boxes"),
+        backgroundColor: Colors.white, // Setting white background so black text is visible
+        elevation: 1,
+        centerTitle: true, // Forces it to the middle
+        title: Text(
+          "Total NAPs: $totalNaps", 
+          style: const TextStyle(
+            color: Colors.black, 
+            fontSize: 22, // Bigger font
+            fontWeight: FontWeight.bold
+          )
+        ),
         actions: [
           widget.isLoading 
           ? const Padding(
@@ -81,65 +94,81 @@ class _ListTabState extends State<ListTab> {
                 child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blueGrey),
               ),
             )
-          : IconButton(onPressed: widget.onRefresh, icon: const Icon(Icons.refresh))
+          : IconButton(
+              onPressed: widget.onRefresh, 
+              icon: const Icon(Icons.refresh, color: Colors.black) // Icon also black to match
+            )
         ],
       ),
       body: ListView.builder(
         padding: const EdgeInsets.only(bottom: 80, top: 10),
-        itemCount: sortedSites.length,
+        itemCount: sortedSheets.length,
         itemBuilder: (context, index) {
-          String siteName = sortedSites[index];
-          Map<int, List<dynamic>> oltsInSite = groupedData[siteName]!;
-          List<int> sortedOlts = oltsInSite.keys.toList()..sort();
+          String sheetName = sortedSheets[index];
+          Map<String, List<dynamic>> sitesInSheet = groupedData[sheetName]!;
+          List<String> sortedSites = sitesInSheet.keys.toList()..sort();
 
-          int totalBoxes = oltsInSite.values.fold(0, (sum, list) => sum + list.length);
+          int totalBoxesInSheet = sitesInSheet.values.fold(0, (sum, list) => sum + list.length);
 
           return Card(
-            elevation: 2,
+            elevation: 3,
             margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             child: ExpansionTile(
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.blueGrey.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.apartment, color: Colors.blueGrey),
+              leading: CircleAvatar(
+                backgroundColor: Colors.blueGrey.shade800,
+                foregroundColor: Colors.white,
+                radius: 18,
+                child: Text(sheetName.substring(0, 1)),
               ),
               title: Text(
-                siteName, 
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)
+                sheetName, 
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black87)
               ),
               subtitle: Text(
-                "$totalBoxes Boxes across ${sortedOlts.length} OLTs",
+                "$totalBoxesInSheet NAPs in ${sortedSites.length} Locations",
                 style: TextStyle(color: Colors.grey[600], fontSize: 12)
               ),
-              childrenPadding: const EdgeInsets.only(left: 10, bottom: 10),
-              children: sortedOlts.map((oltId) {
-                Color oltColor = _getOltColor(oltId);
-                List<dynamic> lcps = oltsInSite[oltId]!;
+              childrenPadding: const EdgeInsets.only(left: 10, bottom: 10, right: 10),
+              children: sortedSites.map((siteName) {
+                List<dynamic> lcps = sitesInSheet[siteName]!;
                 
-                return ExpansionTile(
-                  leading: Icon(Icons.router, color: oltColor),
-                  title: Text(
-                    "OLT $oltId", 
-                    style: TextStyle(color: oltColor, fontWeight: FontWeight.bold)
+                return Card(
+                  elevation: 0,
+                  color: Colors.grey[50],
+                  margin: const EdgeInsets.only(bottom: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(color: Colors.grey.shade300)
                   ),
-                  subtitle: Text("${lcps.length} NAPs"),
-                  children: lcps.map((lcp) {
-                    return ListTile(
-                      dense: true,
-                      contentPadding: const EdgeInsets.only(left: 20, right: 20),
-                      leading: const Icon(Icons.location_on, size: 18),
-                      title: Text(lcp['lcp_name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text(lcp['details']?['Address'] ?? lcp['site_name']),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 12),
-                      onTap: () {
-                         DetailedSheet.show(context, lcp);
-                      },
-                    );
-                  }).toList(),
+                  child: ExpansionTile(
+                    title: Text(
+                      siteName, 
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)
+                    ),
+                    subtitle: Text("${lcps.length} items"),
+                    leading: const Icon(Icons.place, color: Colors.blueGrey, size: 20),
+                    children: lcps.map((lcp) {
+                      Color oltColor = _getOltColor(lcp['olt_id']);
+                      return ListTile(
+                        dense: true,
+                        contentPadding: const EdgeInsets.only(left: 20, right: 10),
+                        leading: Icon(Icons.router, color: oltColor, size: 18),
+                        title: Text(
+                          lcp['lcp_name'], 
+                          style: const TextStyle(fontWeight: FontWeight.bold)
+                        ),
+                        subtitle: Text(
+                          "OLT ${lcp['olt_id']} • ${lcp['details']?['Distance'] ?? ''}",
+                          style: TextStyle(fontSize: 11, color: Colors.grey[700])
+                        ),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 10, color: Colors.grey),
+                        onTap: () {
+                           DetailedSheet.show(context, lcp);
+                        },
+                      );
+                    }).toList(),
+                  ),
                 );
               }).toList(),
             ),
