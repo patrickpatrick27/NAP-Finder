@@ -39,6 +39,10 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   List<Marker> _markers = [];
   bool _isSearching = false;
   bool _isFollowingUser = false;
+  
+  // Track if we are currently looking at a specific LCP's NAPs
+  bool _isViewingSpecificLcp = false;
+
   final LatLng _initialCenter = const LatLng(14.1153, 120.9621);
 
   @override
@@ -55,13 +59,15 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     if (widget.allLcps != oldWidget.allLcps) {
       _generateOverviewMarkers(widget.allLcps);
     }
-    if (_isFollowingUser && widget.currentLocation != null) {
-      _animatedMapMove(widget.currentLocation!, 17.0);
+    // Optimization: Live follow only if active to save resources
+    if (_isFollowingUser && widget.currentLocation != null && widget.currentLocation != oldWidget.currentLocation) {
+      _animatedMapMove(widget.currentLocation!, 17.0, fast: true);
     }
   }
 
-  /// SMOOTH ANIMATION ENGINE
-  void _animatedMapMove(LatLng destLocation, double destZoom) {
+  /// IMPROVED ANIMATION ENGINE
+  /// Added 'fast' flag to reduce lag during frequent GPS updates
+  void _animatedMapMove(LatLng destLocation, double destZoom, {bool fast = false}) {
     final latTween = Tween<double>(
         begin: _mapController.camera.center.latitude, end: destLocation.latitude);
     final lngTween = Tween<double>(
@@ -69,11 +75,13 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     final zoomTween = Tween<double>(
         begin: _mapController.camera.zoom, end: destZoom);
 
+    // Fast updates (GPS following) use shorter duration and simpler curve to prevent lag
     final controller = AnimationController(
-        duration: const Duration(milliseconds: 800), vsync: this);
+        duration: Duration(milliseconds: fast ? 300 : 800), vsync: this);
     
     final Animation<double> animation = CurvedAnimation(
-        parent: controller, curve: Curves.easeInOutQuart);
+        parent: controller, 
+        curve: fast ? Curves.easeOut : Curves.easeInOutQuart);
 
     controller.addListener(() {
       _mapController.move(
@@ -94,10 +102,11 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   void _recenterOnUser() {
     if (widget.currentLocation != null) {
       setState(() => _isFollowingUser = true);
-      _animatedMapMove(widget.currentLocation!, 17.0);
+      // Increased performance for initial snap
+      _animatedMapMove(widget.currentLocation!, 17.0, fast: true);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Waiting for GPS signal..."), duration: Duration(seconds: 1)),
+        const SnackBar(content: Text("Searching for GPS..."), duration: Duration(seconds: 1)),
       );
     }
   }
@@ -130,7 +139,10 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
         );
       }
     }
-    setState(() => _markers = markers);
+    setState(() {
+       _markers = markers;
+       _isViewingSpecificLcp = false;
+    });
   }
 
   void _focusOnLcp(dynamic lcp) {
@@ -138,6 +150,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     setState(() {
       _isSearching = false;
       _isFollowingUser = false;
+      _isViewingSpecificLcp = true; // Changed state
     });
 
     List<Marker> npMarkers = [];
@@ -189,6 +202,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     setState(() {
       _isSearching = false;
       _isFollowingUser = false;
+      _isViewingSpecificLcp = false;
     });
   }
 
@@ -240,7 +254,6 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                   store: widget.cacheStore, 
                   maxStale: const Duration(days: 365), 
                 ),
-                // FIXED: Use the modern TileDisplay configuration
                 tileDisplay: const TileDisplay.fadeIn(
                   duration: Duration(milliseconds: 400),
                 ),
@@ -344,9 +357,10 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
             ),
           ),
           
+          // GPS BUTTON (BOTTOM RIGHT)
           Positioned(
-            top: 130, right: 15,
-            child: FloatingActionButton.small(
+            bottom: 20, right: 20,
+            child: FloatingActionButton(
               heroTag: "gps",
               backgroundColor: _isFollowingUser ? Colors.blue : Colors.white, 
               onPressed: _recenterOnUser,
@@ -354,12 +368,18 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
             ),
           ),
           
+          // RESET / RETURN BUTTON (BOTTOM LEFT)
           Positioned(
-            bottom: 20, right: 20,
-            child: FloatingActionButton.small(
+            bottom: 20, left: 20,
+            child: FloatingActionButton.extended(
               heroTag: "reset",
               onPressed: _resetMap,
-              child: const Icon(Icons.map),
+              backgroundColor: Colors.white,
+              icon: const Icon(Icons.map, color: Colors.black87),
+              label: Text(
+                _isViewingSpecificLcp ? "Return to LCPs" : "Reset Map",
+                style: const TextStyle(color: Colors.black87),
+              ),
             ),
           ),
         ],
