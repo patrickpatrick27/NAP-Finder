@@ -1,71 +1,61 @@
 #!/bin/bash
 set -e 
 
-# 1. Check for uncommitted changes
-if [[ -n $(git status --porcelain) ]]; then
-  echo "❌ Error: You have uncommitted changes. Commit them first."
-  exit 1
-fi
-
-# 2. Extract Local Version
+# 1. Extract Local Version
 LOCAL_VERSION=$(grep 'version:' pubspec.yaml | sed 's/version: //')
 LOCAL_BASE=$(echo $LOCAL_VERSION | cut -d '+' -f 1)
+TAG="v$LOCAL_BASE"
 
-# 3. Fetch Remote Version from GitHub (origin/main)
-echo "🔍 Checking version on GitHub..."
-git fetch origin main --quiet
-REMOTE_VERSION=$(git show origin/main:pubspec.yaml | grep 'version:' | sed 's/version: //')
-REMOTE_BASE=$(echo $REMOTE_VERSION | cut -d '+' -f 1)
+# 2. Sync with GitHub metadata
+echo "🔍 Checking GitHub for $TAG..."
+git fetch origin --tags --quiet
 
-echo "📊 Local: $LOCAL_BASE | GitHub: $REMOTE_BASE"
+# 3. Check if the Release/Tag already exists on the server
+TAG_EXISTS=$(git ls-remote --tags origin | grep "$TAG" || true)
 
-# 4. Compare Versions
-if [ "$LOCAL_BASE" == "$REMOTE_BASE" ]; then
-  echo "🛑 Error: Version $LOCAL_BASE is already on GitHub."
-  echo "👉 Please increment the version in pubspec.yaml before releasing."
-  exit 1
+if [ -n "$TAG_EXISTS" ]; then
+  echo "🛑 Release $TAG already exists on GitHub."
+  read -p "❓ Do you want to DELETE and RE-UPLOAD this release? (y/n): " REFORCE
+  if [ "$REFORCE" != "y" ]; then
+    exit 1
+  fi
+  echo "🗑️  Removing old tag/release to overwrite..."
+  gh release delete "$TAG" --yes || true
+  git push --delete origin "$TAG" || true
+  git tag -d "$TAG" || true
 fi
 
-TAG="v$LOCAL_BASE"
+# 4. Use Latest Commit ID as Notes
 COMMIT_ID=$(git rev-parse --short HEAD)
-
-# 5. Set Release Notes to Commit ID
 RELEASE_NOTES="Build based on Commit ID: $COMMIT_ID"
 
 echo "🚀 Starting Release Process for $TAG"
-echo "📝 Notes: $RELEASE_NOTES"
 
-# 6. Push Code to GitHub
+# 5. Push Code (In case you haven't)
 echo "☁️  Pushing code to GitHub..."
-git push origin HEAD
+git push origin HEAD --quiet || echo "Already pushed."
 
-# 7. Tag and Push Tag
-if git ls-remote --exit-code --tags origin "$TAG" >/dev/null 2>&1; then
-    echo "⚠️  Tag $TAG already exists. Deleting remote tag to overwrite..."
-    git push --delete origin "$TAG" || true
-    git tag -d "$TAG" || true
-fi
-
+# 6. Tagging
+echo "🏷  Tagging version $TAG..."
 git tag "$TAG"
 git push origin "$TAG"
 
-# 8. Build APK
+# 7. Build APK
 echo "🛠  Building Release APK..."
 flutter build apk --release --no-tree-shake-icons
 
-# 9. Check if Build Succeeded
+# 8. Check if Build Succeeded
 APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
 if [ ! -f "$APK_PATH" ]; then
     echo "❌ Error: APK file not found."
     exit 1
 fi
 
-# 10. Rename and Upload
+# 9. Rename and Upload
 NEW_NAME="build/app/outputs/flutter-apk/NAP_Finder_$TAG.apk"
 mv "$APK_PATH" "$NEW_NAME"
 
 echo "📦 Uploading Release to GitHub..."
-# Use --overwrite if the release already exists
 gh release create "$TAG" "$NEW_NAME" \
     --title "Version $LOCAL_BASE" \
     --notes "$RELEASE_NOTES" \

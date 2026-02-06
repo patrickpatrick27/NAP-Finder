@@ -186,7 +186,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     DetailedSheet.show(context, lcp, isAdmin: isAdmin);
   }
 
-  /// BOUNDING BOX LOGIC: Centers all NAPs by fitting them into the camera view
+  /// IMPROVED RESET LOGIC: Calculates the exact center of all NAPs
   void _resetMap() {
     _searchController.clear();
     _generateOverviewMarkers(widget.allLcps);
@@ -202,26 +202,17 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
       }
 
       if (allPoints.isNotEmpty) {
-        // Find the min/max lat and lng to create bounds
-        double minLat = allPoints.first.latitude;
-        double maxLat = allPoints.first.latitude;
-        double minLng = allPoints.first.longitude;
-        double maxLng = allPoints.first.longitude;
-
+        // Calculate the center (mean) of every single NAP coordinate
+        double avgLat = 0;
+        double avgLng = 0;
         for (var p in allPoints) {
-          if (p.latitude < minLat) minLat = p.latitude;
-          if (p.latitude > maxLat) maxLat = p.latitude;
-          if (p.longitude < minLng) minLng = p.longitude;
-          if (p.longitude > maxLng) maxLng = p.longitude;
+          avgLat += p.latitude;
+          avgLng += p.longitude;
         }
+        LatLng centerOfNaps = LatLng(avgLat / allPoints.length, avgLng / allPoints.length);
 
-        // Fit camera to these bounds with padding
-        _mapController.fitCamera(
-          CameraFit.bounds(
-            bounds: LatLngBounds(LatLng(minLat, minLng), LatLng(maxLat, maxLng)),
-            padding: const EdgeInsets.all(50),
-          ),
-        );
+        // Move to that center smoothly. Zoom level 13.5 provides a good balance.
+        _animatedMapMove(centerOfNaps, 13.5);
       }
     }
     
@@ -327,7 +318,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
             ],
           ),
 
-          // Search Bar
+          // --- Search Bar ---
           Positioned(
             top: 50, left: 15, right: 15,
             child: Column(
@@ -383,32 +374,42 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
             ),
           ),
           
-          // MY LOCATION BUTTON (SMALLER)
+          // --- SLEEK MY LOCATION BUTTON ---
           Positioned(
             bottom: 20, right: 20,
-            child: FloatingActionButton.extended(
-              heroTag: "gps",
-              onPressed: _recenterOnUser,
-              backgroundColor: _isFollowingUser ? Colors.blue : Colors.white,
-              icon: Icon(Icons.my_location, size: 16, color: _isFollowingUser ? Colors.white : Colors.black87),
-              label: Text(
-                "My Location",
-                style: TextStyle(fontSize: 11, color: _isFollowingUser ? Colors.white : Colors.black87),
+            child: SizedBox(
+              height: 32, 
+              child: FloatingActionButton.extended(
+                heroTag: "gps",
+                onPressed: _recenterOnUser,
+                elevation: 2,
+                backgroundColor: _isFollowingUser ? Colors.blue : Colors.white,
+                extendedPadding: const EdgeInsets.symmetric(horizontal: 12),
+                icon: Icon(Icons.my_location, size: 14, color: _isFollowingUser ? Colors.white : Colors.black87),
+                label: Text(
+                  "My Location",
+                  style: TextStyle(fontSize: 10, color: _isFollowingUser ? Colors.white : Colors.black87),
+                ),
               ),
             ),
           ),
           
-          // RESET / RETURN BUTTON (SMALLER)
+          // --- SLEEK RESET / RETURN BUTTON ---
           Positioned(
             bottom: 20, left: 20,
-            child: FloatingActionButton.extended(
-              heroTag: "reset",
-              onPressed: _resetMap,
-              backgroundColor: Colors.white,
-              icon: const Icon(Icons.map, size: 16, color: Colors.black87),
-              label: Text(
-                _isViewingSpecificLcp ? "Return" : "Reset",
-                style: const TextStyle(fontSize: 11, color: Colors.black87),
+            child: SizedBox(
+              height: 32, 
+              child: FloatingActionButton.extended(
+                heroTag: "reset",
+                onPressed: _resetMap,
+                elevation: 2,
+                backgroundColor: Colors.white,
+                extendedPadding: const EdgeInsets.symmetric(horizontal: 12),
+                icon: const Icon(Icons.map, size: 14, color: Colors.black87),
+                label: Text(
+                  _isViewingSpecificLcp ? "Return" : "Reset",
+                  style: const TextStyle(fontSize: 10, color: Colors.black87),
+                ),
               ),
             ),
           ),
