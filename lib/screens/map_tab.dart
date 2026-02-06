@@ -39,11 +39,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   List<Marker> _markers = [];
   bool _isSearching = false;
   bool _isFollowingUser = false;
-  
-  // Track if we are currently looking at a specific LCP's NAPs
   bool _isViewingSpecificLcp = false;
-
-  final LatLng _initialCenter = const LatLng(14.1153, 120.9621);
 
   @override
   void initState() {
@@ -59,14 +55,11 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     if (widget.allLcps != oldWidget.allLcps) {
       _generateOverviewMarkers(widget.allLcps);
     }
-    // Optimization: Live follow only if active to save resources
     if (_isFollowingUser && widget.currentLocation != null && widget.currentLocation != oldWidget.currentLocation) {
       _animatedMapMove(widget.currentLocation!, 17.0, fast: true);
     }
   }
 
-  /// IMPROVED ANIMATION ENGINE
-  /// Added 'fast' flag to reduce lag during frequent GPS updates
   void _animatedMapMove(LatLng destLocation, double destZoom, {bool fast = false}) {
     final latTween = Tween<double>(
         begin: _mapController.camera.center.latitude, end: destLocation.latitude);
@@ -75,7 +68,6 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     final zoomTween = Tween<double>(
         begin: _mapController.camera.zoom, end: destZoom);
 
-    // Fast updates (GPS following) use shorter duration and simpler curve to prevent lag
     final controller = AnimationController(
         duration: Duration(milliseconds: fast ? 300 : 800), vsync: this);
     
@@ -102,7 +94,6 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   void _recenterOnUser() {
     if (widget.currentLocation != null) {
       setState(() => _isFollowingUser = true);
-      // Increased performance for initial snap
       _animatedMapMove(widget.currentLocation!, 17.0, fast: true);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -150,7 +141,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     setState(() {
       _isSearching = false;
       _isFollowingUser = false;
-      _isViewingSpecificLcp = true; // Changed state
+      _isViewingSpecificLcp = true;
     });
 
     List<Marker> npMarkers = [];
@@ -195,10 +186,36 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     DetailedSheet.show(context, lcp, isAdmin: isAdmin);
   }
 
+  /// DYNAMIC CENTER LOGIC: Calculates the bounds of all NAPs
   void _resetMap() {
     _searchController.clear();
     _generateOverviewMarkers(widget.allLcps);
-    _animatedMapMove(_initialCenter, 13.0);
+    
+    if (widget.allLcps.isNotEmpty) {
+      List<LatLng> allPoints = [];
+      for (var lcp in widget.allLcps) {
+        if (lcp['nps'] != null) {
+          for (var np in lcp['nps']) {
+            allPoints.add(LatLng(np['lat'], np['lng']));
+          }
+        }
+      }
+
+      if (allPoints.isNotEmpty) {
+        // Calculate the center point of all available data
+        double sumLat = 0;
+        double sumLng = 0;
+        for (var p in allPoints) {
+          sumLat += p.latitude;
+          sumLng += p.longitude;
+        }
+        LatLng center = LatLng(sumLat / allPoints.length, sumLng / allPoints.length);
+        
+        // Move smoothly to the calculated center
+        _animatedMapMove(center, 12.5);
+      }
+    }
+    
     setState(() {
       _isSearching = false;
       _isFollowingUser = false;
@@ -236,7 +253,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: _initialCenter,
+              initialCenter: const LatLng(14.1153, 120.9621),
               initialZoom: 13.0,
               interactionOptions: const InteractionOptions(
                 flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
@@ -357,28 +374,32 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
             ),
           ),
           
-          // GPS BUTTON (BOTTOM RIGHT)
+          // GPS BUTTON (BOTTOM RIGHT) - Now smaller with text
           Positioned(
             bottom: 20, right: 20,
-            child: FloatingActionButton(
+            child: FloatingActionButton.extended(
               heroTag: "gps",
-              backgroundColor: _isFollowingUser ? Colors.blue : Colors.white, 
               onPressed: _recenterOnUser,
-              child: Icon(Icons.my_location, color: _isFollowingUser ? Colors.white : Colors.black87),
+              backgroundColor: _isFollowingUser ? Colors.blue : Colors.white,
+              icon: Icon(Icons.my_location, size: 18, color: _isFollowingUser ? Colors.white : Colors.black87),
+              label: Text(
+                "My Location",
+                style: TextStyle(fontSize: 12, color: _isFollowingUser ? Colors.white : Colors.black87),
+              ),
             ),
           ),
           
-          // RESET / RETURN BUTTON (BOTTOM LEFT)
+          // RESET / RETURN BUTTON (BOTTOM LEFT) - Smaller version
           Positioned(
             bottom: 20, left: 20,
             child: FloatingActionButton.extended(
               heroTag: "reset",
               onPressed: _resetMap,
               backgroundColor: Colors.white,
-              icon: const Icon(Icons.map, color: Colors.black87),
+              icon: const Icon(Icons.map, size: 18, color: Colors.black87),
               label: Text(
-                _isViewingSpecificLcp ? "Return to LCPs" : "Reset Map",
-                style: const TextStyle(color: Colors.black87),
+                _isViewingSpecificLcp ? "Return" : "Reset",
+                style: const TextStyle(fontSize: 12, color: Colors.black87),
               ),
             ),
           ),
