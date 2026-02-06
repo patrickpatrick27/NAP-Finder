@@ -4,7 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map_cache/flutter_map_cache.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // REQUIRED for admin check
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:dio_cache_interceptor/dio_cache_interceptor.dart';
 import '../widgets/detailed_sheet.dart';
 
@@ -30,7 +30,7 @@ class MapTab extends StatefulWidget {
   State<MapTab> createState() => _MapTabState();
 }
 
-class _MapTabState extends State<MapTab> {
+class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   final MapController _mapController = MapController();
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -56,14 +56,45 @@ class _MapTabState extends State<MapTab> {
       _generateOverviewMarkers(widget.allLcps);
     }
     if (_isFollowingUser && widget.currentLocation != null) {
-      _mapController.move(widget.currentLocation!, 17.0);
+      _animatedMapMove(widget.currentLocation!, 17.0);
     }
+  }
+
+  /// SMOOTH ANIMATION ENGINE
+  void _animatedMapMove(LatLng destLocation, double destZoom) {
+    final latTween = Tween<double>(
+        begin: _mapController.camera.center.latitude, end: destLocation.latitude);
+    final lngTween = Tween<double>(
+        begin: _mapController.camera.center.longitude, end: destLocation.longitude);
+    final zoomTween = Tween<double>(
+        begin: _mapController.camera.zoom, end: destZoom);
+
+    final controller = AnimationController(
+        duration: const Duration(milliseconds: 800), vsync: this);
+    
+    final Animation<double> animation = CurvedAnimation(
+        parent: controller, curve: Curves.easeInOutQuart);
+
+    controller.addListener(() {
+      _mapController.move(
+        LatLng(latTween.evaluate(animation), lngTween.evaluate(animation)),
+        zoomTween.evaluate(animation),
+      );
+    });
+
+    controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed || status == AnimationStatus.dismissed) {
+        controller.dispose();
+      }
+    });
+
+    controller.forward();
   }
 
   void _recenterOnUser() {
     if (widget.currentLocation != null) {
       setState(() => _isFollowingUser = true);
-      _mapController.move(widget.currentLocation!, 17.0);
+      _animatedMapMove(widget.currentLocation!, 17.0);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Waiting for GPS signal..."), duration: Duration(seconds: 1)),
@@ -112,8 +143,6 @@ class _MapTabState extends State<MapTab> {
     List<Marker> npMarkers = [];
     List<LatLng> points = [];
     Color oltColor = _getOltColor(lcp['olt_id']);
-
-    // Check Login Status Here
     bool isAdmin = FirebaseAuth.instance.currentUser != null;
 
     for (var np in lcp['nps']) {
@@ -148,37 +177,15 @@ class _MapTabState extends State<MapTab> {
     setState(() => _markers = npMarkers);
     
     if (points.isNotEmpty) {
-       double minLat = points.first.latitude;
-       double maxLat = points.first.latitude;
-       double minLng = points.first.longitude;
-       double maxLng = points.first.longitude;
-
-       for (var p in points) {
-         if (p.latitude < minLat) minLat = p.latitude;
-         if (p.latitude > maxLat) maxLat = p.latitude;
-         if (p.longitude < minLng) minLng = p.longitude;
-         if (p.longitude > maxLng) maxLng = p.longitude;
-       }
-       
-       if ((maxLat - minLat).abs() < 0.0001 && (maxLng - minLng).abs() < 0.0001) {
-          _mapController.move(LatLng(minLat, minLng), 18.0);
-       } else {
-          _mapController.fitCamera(
-            CameraFit.bounds(
-              bounds: LatLngBounds(LatLng(minLat, minLng), LatLng(maxLat, maxLng)),
-              padding: const EdgeInsets.all(80),
-            ),
-          );
-       }
+       _animatedMapMove(points.first, 18.0);
     }
-    // Check again and pass to initial sheet
     DetailedSheet.show(context, lcp, isAdmin: isAdmin);
   }
 
   void _resetMap() {
     _searchController.clear();
     _generateOverviewMarkers(widget.allLcps);
-    _mapController.move(_initialCenter, 13.0);
+    _animatedMapMove(_initialCenter, 13.0);
     setState(() {
       _isSearching = false;
       _isFollowingUser = false;
@@ -217,7 +224,9 @@ class _MapTabState extends State<MapTab> {
             options: MapOptions(
               initialCenter: _initialCenter,
               initialZoom: 13.0,
-              interactionOptions: const InteractionOptions(flags: InteractiveFlag.all & ~InteractiveFlag.rotate),
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+              ),
               onTap: (_, __) => _searchFocusNode.unfocus(),
               onPositionChanged: (pos, hasGesture) {
                 if (hasGesture) setState(() => _isFollowingUser = false);
@@ -230,6 +239,10 @@ class _MapTabState extends State<MapTab> {
                 tileProvider: CachedTileProvider(
                   store: widget.cacheStore, 
                   maxStale: const Duration(days: 365), 
+                ),
+                // FIXED: Use the modern TileDisplay configuration
+                tileDisplay: const TileDisplay.fadeIn(
+                  duration: Duration(milliseconds: 400),
                 ),
               ),
               MarkerClusterLayerWidget(
