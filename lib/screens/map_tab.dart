@@ -186,7 +186,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     DetailedSheet.show(context, lcp, isAdmin: isAdmin);
   }
 
-  /// DYNAMIC CENTER LOGIC: Calculates the bounds of all NAPs
+  /// BOUNDING BOX LOGIC: Centers all NAPs by fitting them into the camera view
   void _resetMap() {
     _searchController.clear();
     _generateOverviewMarkers(widget.allLcps);
@@ -202,17 +202,26 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
       }
 
       if (allPoints.isNotEmpty) {
-        // Calculate the center point of all available data
-        double sumLat = 0;
-        double sumLng = 0;
+        // Find the min/max lat and lng to create bounds
+        double minLat = allPoints.first.latitude;
+        double maxLat = allPoints.first.latitude;
+        double minLng = allPoints.first.longitude;
+        double maxLng = allPoints.first.longitude;
+
         for (var p in allPoints) {
-          sumLat += p.latitude;
-          sumLng += p.longitude;
+          if (p.latitude < minLat) minLat = p.latitude;
+          if (p.latitude > maxLat) maxLat = p.latitude;
+          if (p.longitude < minLng) minLng = p.longitude;
+          if (p.longitude > maxLng) maxLng = p.longitude;
         }
-        LatLng center = LatLng(sumLat / allPoints.length, sumLng / allPoints.length);
-        
-        // Move smoothly to the calculated center
-        _animatedMapMove(center, 12.5);
+
+        // Fit camera to these bounds with padding
+        _mapController.fitCamera(
+          CameraFit.bounds(
+            bounds: LatLngBounds(LatLng(minLat, minLng), LatLng(maxLat, maxLng)),
+            padding: const EdgeInsets.all(50),
+          ),
+        );
       }
     }
     
@@ -374,32 +383,32 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
             ),
           ),
           
-          // GPS BUTTON (BOTTOM RIGHT) - Now smaller with text
+          // MY LOCATION BUTTON (SMALLER)
           Positioned(
             bottom: 20, right: 20,
             child: FloatingActionButton.extended(
               heroTag: "gps",
               onPressed: _recenterOnUser,
               backgroundColor: _isFollowingUser ? Colors.blue : Colors.white,
-              icon: Icon(Icons.my_location, size: 18, color: _isFollowingUser ? Colors.white : Colors.black87),
+              icon: Icon(Icons.my_location, size: 16, color: _isFollowingUser ? Colors.white : Colors.black87),
               label: Text(
                 "My Location",
-                style: TextStyle(fontSize: 12, color: _isFollowingUser ? Colors.white : Colors.black87),
+                style: TextStyle(fontSize: 11, color: _isFollowingUser ? Colors.white : Colors.black87),
               ),
             ),
           ),
           
-          // RESET / RETURN BUTTON (BOTTOM LEFT) - Smaller version
+          // RESET / RETURN BUTTON (SMALLER)
           Positioned(
             bottom: 20, left: 20,
             child: FloatingActionButton.extended(
               heroTag: "reset",
               onPressed: _resetMap,
               backgroundColor: Colors.white,
-              icon: const Icon(Icons.map, size: 18, color: Colors.black87),
+              icon: const Icon(Icons.map, size: 16, color: Colors.black87),
               label: Text(
                 _isViewingSpecificLcp ? "Return" : "Reset",
-                style: const TextStyle(fontSize: 12, color: Colors.black87),
+                style: const TextStyle(fontSize: 11, color: Colors.black87),
               ),
             ),
           ),
