@@ -6,11 +6,13 @@ import 'package:googleapis_auth/auth_io.dart';
 
 class SheetService {
   static const String _spreadsheetId = '1x_IsBXD0Tky4lZwg9lrIgUVR7s_rbfnC0c2L9adOwdI';
-  static const String _cacheKey = 'lcp_data_multi_sheet_v3_olt_port_eac'; 
+  
+  // UPDATED: Changed version to '_v4' to force the app to ignore old cache and fetch fresh data
+  static const String _cacheKey = 'lcp_data_multi_sheet_v4_with_amc002'; 
 
   static const List<String> _targetSheetNames = [
     "TGY001", "TGY002", "EAC001",
-    "AFC001", "AMC001",
+    "AFC001", "AMC001", "AMC002",
     "IDC001", "IDC002", "IDC003",
     "MGC001", "MRC001", "MRC002",
     "MZC001", "MZC002",
@@ -29,6 +31,7 @@ class SheetService {
       List<dynamic> allCombinedData = [];
       print("🚀 FAST MODE: Batch fetching ${_targetSheetNames.length} sheets...");
 
+      // Prepare the ranges for all sheets
       List<String> ranges = _targetSheetNames.map((name) => '$name!A:AZ').toList();
 
       try {
@@ -47,7 +50,7 @@ class SheetService {
               allCombinedData.addAll(sheetData);
               print("   ✅ Parsed $sheetName (${sheetData.length} items)");
             } else {
-              print("   ⚠️ Sheet $sheetName was empty.");
+              print("   ⚠️ Sheet $sheetName was empty or name mismatch.");
             }
           }
         }
@@ -98,20 +101,26 @@ class SheetService {
     List<dynamic> headerRow = rawRows[1]; 
     List<int> blockStarts = [];
 
+    // Detect where the "OLT PORT" blocks start
     for (int i = 0; i < headerRow.length; i++) {
       String cell = headerRow[i].toString().toUpperCase().trim();
       if (cell == "OLT PORT") blockStarts.add(i);
     }
 
+    // Fallback if headers aren't exact
     if (blockStarts.isEmpty) blockStarts = [0, 15, 30]; 
 
     for (var i = 2; i < rawRows.length; i++) {
       List<dynamic> row = List.from(rawRows[i]);
+      // Ensure row is long enough to avoid range errors
       while (row.length < 60) row.add(""); 
+      
       for (int k = 0; k < blockStarts.length; k++) {
         try {
           _processBlock(row, blockStarts[k], k + 1, lcpMap, sheetOrigin);
-        } catch (e) {}
+        } catch (e) {
+           // ignore bad rows
+        }
       }
     }
 
@@ -123,6 +132,8 @@ class SheetService {
   void _processBlock(List<dynamic> row, int startIdx, int oltNum, Map<String, Map<String, dynamic>> lcpMap, String sheetOrigin) {
     if (row.length <= startIdx + 1) return;
     String lcpName = row[startIdx + 1].toString().trim();
+    
+    // Skip empty or invalid rows
     if (lcpName.isEmpty || lcpName.toUpperCase().contains("VACANT") || lcpName.toUpperCase() == "0") return;
 
     String siteNameFromRow = row[startIdx + 2].toString().trim();
@@ -154,6 +165,7 @@ class SheetService {
       };
     }
 
+    // Process coordinates for each NP
     _addNpSafely(lcpMap[uniqueKey]!, "NP1-2", row, startIdx + 10);
     _addNpSafely(lcpMap[uniqueKey]!, "NP3-4", row, startIdx + 11);
     _addNpSafely(lcpMap[uniqueKey]!, "NP5-6", row, startIdx + 12);
@@ -165,6 +177,7 @@ class SheetService {
     String rawValue = row[colIndex].toString();
     if (rawValue.trim().isEmpty || rawValue.toUpperCase().contains("N/A")) return;
 
+    // Clean up coordinate string (remove text, keep numbers/dots/commas/dashes)
     String spacedValue = rawValue.replaceAll(RegExp(r'[^0-9.,-]'), ' ');
     List<String> chunks = spacedValue.split(RegExp(r'[ ,]+'));
     
@@ -179,6 +192,7 @@ class SheetService {
     }
 
     if (lat != null && lng != null) {
+      // Basic bounding box check for Philippines (approx) to filter bad data
       if (lat > 4 && lat < 22 && lng > 116 && lng < 128) {
         lcpObj['nps'].add({'name': npName, 'lat': lat, 'lng': lng});
       }
