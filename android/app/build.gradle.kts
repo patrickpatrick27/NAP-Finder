@@ -2,6 +2,8 @@ plugins {
     id("com.android.application")
     id("kotlin-android")
     id("dev.flutter.flutter-gradle-plugin")
+    // --- ADD THIS LINE BELOW ---
+    id("com.google.gms.google-services") 
 }
 
 import java.util.Properties
@@ -34,13 +36,11 @@ android {
                  throw GradleException("❌ BUILD STOPPED: key.properties not found! Check your GitHub Secrets.")
             }
             
-            // Force load keys. If any are missing, it will crash and tell us which one.
             keyAlias = keystoreProperties.getProperty("keyAlias") ?: throw GradleException("❌ Missing keyAlias")
             keyPassword = keystoreProperties.getProperty("keyPassword") ?: throw GradleException("❌ Missing keyPassword")
             storeFile = file(keystoreProperties.getProperty("storeFile") ?: throw GradleException("❌ Missing storeFile"))
             storePassword = keystoreProperties.getProperty("storePassword") ?: throw GradleException("❌ Missing storePassword")
             
-            // Valid Signatures for Android 11+
             enableV1Signing = true
             enableV2Signing = true
         }
@@ -56,7 +56,7 @@ android {
 
     buildTypes {
         getByName("debug") {
-            // Your separation logic
+            // KEEP THIS: We are using the "Two App" strategy (Debug + Release)
             applicationIdSuffix = ".debug"
             resValue("string", "app_name", "NAP Finder (Dev)")
         }
@@ -64,7 +64,7 @@ android {
         getByName("release") {
             resValue("string", "app_name", "NAP Finder")
             
-            // FORCE the release config. Do not use 'if'.
+            // FORCE the release config
             signingConfig = signingConfigs.getByName("release")
             
             isMinifyEnabled = false

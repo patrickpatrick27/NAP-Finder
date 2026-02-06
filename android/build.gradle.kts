@@ -1,3 +1,16 @@
+// --- ADD THIS BLOCK AT THE TOP ---
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        // This gives the app access to the Google Services plugin
+        classpath("com.google.gms:google-services:4.4.0")
+    }
+}
+// --------------------------------
+
 allprojects {
     repositories {
         google()

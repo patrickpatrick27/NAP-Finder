@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:firebase_core/firebase_core.dart'; // <--- NEW IMPORT
 import 'screens/home_screen.dart';
 import 'package:dio_cache_interceptor/dio_cache_interceptor.dart';
 import 'package:dio_cache_interceptor_file_store/dio_cache_interceptor_file_store.dart';
@@ -7,6 +8,9 @@ import 'package:dio_cache_interceptor_file_store/dio_cache_interceptor_file_stor
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  // Initialize Firebase for Auth
+  await Firebase.initializeApp(); // <--- NEW LINE
+
   final dir = await getApplicationDocumentsDirectory();
   final cachePath = '${dir.path}/map_tiles';
   final cacheStore = FileCacheStore(cachePath);

@@ -4,8 +4,9 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map_cache/flutter_map_cache.dart';
-import '../widgets/detailed_sheet.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // REQUIRED for admin check
 import 'package:dio_cache_interceptor/dio_cache_interceptor.dart';
+import '../widgets/detailed_sheet.dart';
 
 class MapTab extends StatefulWidget {
   final CacheStore cacheStore;
@@ -112,6 +113,9 @@ class _MapTabState extends State<MapTab> {
     List<LatLng> points = [];
     Color oltColor = _getOltColor(lcp['olt_id']);
 
+    // Check Login Status Here
+    bool isAdmin = FirebaseAuth.instance.currentUser != null;
+
     for (var np in lcp['nps']) {
       LatLng pos = LatLng(np['lat'], np['lng']);
       points.add(pos);
@@ -121,7 +125,7 @@ class _MapTabState extends State<MapTab> {
           width: 80,
           height: 60,
           child: GestureDetector(
-            onTap: () => DetailedSheet.show(context, lcp),
+            onTap: () => DetailedSheet.show(context, lcp, isAdmin: isAdmin),
             child: Column(
               children: [
                 Container(
@@ -167,7 +171,8 @@ class _MapTabState extends State<MapTab> {
           );
        }
     }
-    DetailedSheet.show(context, lcp);
+    // Check again and pass to initial sheet
+    DetailedSheet.show(context, lcp, isAdmin: isAdmin);
   }
 
   void _resetMap() {

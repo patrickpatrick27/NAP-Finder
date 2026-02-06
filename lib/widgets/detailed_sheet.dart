@@ -3,7 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class DetailedSheet {
-  static void show(BuildContext context, dynamic lcp) {
+  // Changed parameter name to 'isAdmin' for clarity
+  static void show(BuildContext context, dynamic lcp, {required bool isAdmin}) {
     Color themeColor = _getOltColor(lcp['olt_id']);
     Map<String, dynamic> details = lcp['details'] ?? {};
 
@@ -15,7 +16,7 @@ class DetailedSheet {
         return DraggableScrollableSheet(
           initialChildSize: 0.5,
           minChildSize: 0.3,
-          maxChildSize: 0.85,
+          maxChildSize: 0.9,
           builder: (context, scrollController) {
             return Container(
               decoration: const BoxDecoration(
@@ -27,6 +28,7 @@ class DetailedSheet {
               child: ListView(
                 controller: scrollController,
                 children: [
+                  // --- HEADER (Visible to Everyone) ---
                   Center(child: Container(width: 40, height: 4, color: Colors.grey[300])),
                   const SizedBox(height: 15),
                   Row(
@@ -49,23 +51,39 @@ class DetailedSheet {
                   ),
                   Text(lcp['site_name'], style: TextStyle(color: Colors.grey[600], fontSize: 16)),
                   const Divider(height: 30),
-                  _buildSectionTitle("Patching Details", themeColor),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      _buildDetailCard(context, "OLT Port", details['OLT Port']), 
-                      _buildDetailCard(context, "ODF", details['ODF']),
-                      _buildDetailCard(context, "ODF Port", details['ODF Port']),
-                      _buildDetailCard(context, "New ODF", details['New ODF']),
-                      _buildDetailCard(context, "New Port", details['New Port']),
-                      _buildDetailCard(context, "Rack ID", details['Rack ID']),
-                      _buildDetailCard(context, "Date/NMP", details['Date'], isWide: true),
-                      _buildDetailCard(context, "Distance", details['Distance']),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
+
+                  // --- ADMIN ONLY SECTION ---
+                  // Visible ONLY if logged in. Status/Notes removed.
+                  if (isAdmin) ...[
+                    _buildSectionTitle("Patching Details", themeColor),
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50, 
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade200)
+                      ),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _buildDetailCard(context, "OLT Port", details['OLT Port']), 
+                          _buildDetailCard(context, "ODF", details['ODF']),
+                          _buildDetailCard(context, "ODF Port", details['ODF Port']),
+                          _buildDetailCard(context, "New ODF", details['New ODF']),
+                          _buildDetailCard(context, "New Port", details['New Port']),
+                          _buildDetailCard(context, "Rack ID", details['Rack ID']),
+                          _buildDetailCard(context, "Date/NMP", details['Date'], isWide: true),
+                          _buildDetailCard(context, "Distance", details['Distance']),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 30), 
+                  ],
+
+                  // --- COORDINATES (Visible to Everyone) ---
                   _buildSectionTitle("Coordinates & Navigation", themeColor),
                   ...lcp['nps'].map<Widget>((np) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -109,14 +127,22 @@ class DetailedSheet {
     );
   }
 
+  // --- Helpers ---
+
   static Future<void> _launchMaps(double lat, double lng) async {
-    final Uri googleUrl = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng');
+    // UPDATED: This URL scheme forces Google Maps Navigation Mode
+    // "dir" = Directions
+    // "destination" = Target Lat/Lng
+    final Uri googleUrl = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving'
+    );
+    
     try {
       if (!await launchUrl(googleUrl, mode: LaunchMode.externalApplication)) {
          throw 'Could not launch Maps';
       }
     } catch (e) {
-      print("Error launching map: $e");
+      debugPrint("Error launching map: $e");
     }
   }
 
@@ -131,25 +157,21 @@ class DetailedSheet {
 
   static Widget _buildSectionTitle(String title, Color color) {
     return Row(children: [
-      Icon(Icons.info, size: 16, color: color),
+      Icon(Icons.info_outline, size: 16, color: color),
       const SizedBox(width: 6),
       Text(title, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14)),
     ]);
   }
 
   static Widget _buildDetailCard(BuildContext context, String label, String? value, {bool isWide = false}) {
-    String displayValue = (value == null || value.isEmpty) ? "-" : value;
+    String displayValue = (value == null || value.trim().isEmpty) ? "-" : value;
     return Material( 
       color: Colors.transparent,
       child: InkWell(
         onTap: () {
           Clipboard.setData(ClipboardData(text: displayValue));
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("$label copied! 📋"), 
-              duration: const Duration(seconds: 1),
-              behavior: SnackBarBehavior.floating,
-            ),
+             const SnackBar(content: Text("Copied!"), duration: Duration(milliseconds: 500)),
           );
         },
         borderRadius: BorderRadius.circular(8),
@@ -157,9 +179,10 @@ class DetailedSheet {
           width: isWide ? double.infinity : 100, 
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: Colors.grey[50],
+            color: Colors.white,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey[200]!),
+            border: Border.all(color: Colors.grey[300]!),
+            boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 2, offset: const Offset(0, 2))],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
