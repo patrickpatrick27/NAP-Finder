@@ -186,7 +186,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     DetailedSheet.show(context, lcp, isAdmin: isAdmin);
   }
 
-  /// IMPROVED RESET LOGIC: Calculates the exact center of all NAPs
+  /// IMPROVED RESET LOGIC: Calculates center and uses a wider zoom
   void _resetMap() {
     _searchController.clear();
     _generateOverviewMarkers(widget.allLcps);
@@ -202,7 +202,6 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
       }
 
       if (allPoints.isNotEmpty) {
-        // Calculate the center (mean) of every single NAP coordinate
         double avgLat = 0;
         double avgLng = 0;
         for (var p in allPoints) {
@@ -211,8 +210,8 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
         }
         LatLng centerOfNaps = LatLng(avgLat / allPoints.length, avgLng / allPoints.length);
 
-        // Move to that center smoothly. Zoom level 13.5 provides a good balance.
-        _animatedMapMove(centerOfNaps, 13.5);
+        // Zoom level 12.0 is wider/further out than 13.5
+        _animatedMapMove(centerOfNaps, 12.0);
       }
     }
     
@@ -318,7 +317,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
             ],
           ),
 
-          // --- Search Bar ---
+          // Search Bar
           Positioned(
             top: 50, left: 15, right: 15,
             child: Column(
@@ -374,41 +373,41 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
             ),
           ),
           
-          // --- SLEEK MY LOCATION BUTTON ---
+          // --- UPDATED: COMFORTABLE SIZE MY LOCATION BUTTON ---
           Positioned(
-            bottom: 20, right: 20,
+            bottom: 20, right: 15,
             child: SizedBox(
-              height: 32, 
+              height: 44, // Increased from 32 (Standard touch target size)
               child: FloatingActionButton.extended(
                 heroTag: "gps",
                 onPressed: _recenterOnUser,
-                elevation: 2,
+                elevation: 3,
                 backgroundColor: _isFollowingUser ? Colors.blue : Colors.white,
-                extendedPadding: const EdgeInsets.symmetric(horizontal: 12),
-                icon: Icon(Icons.my_location, size: 14, color: _isFollowingUser ? Colors.white : Colors.black87),
+                extendedPadding: const EdgeInsets.symmetric(horizontal: 16),
+                icon: Icon(Icons.my_location, size: 18, color: _isFollowingUser ? Colors.white : Colors.black87),
                 label: Text(
                   "My Location",
-                  style: TextStyle(fontSize: 10, color: _isFollowingUser ? Colors.white : Colors.black87),
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: _isFollowingUser ? Colors.white : Colors.black87),
                 ),
               ),
             ),
           ),
           
-          // --- SLEEK RESET / RETURN BUTTON ---
+          // --- UPDATED: COMFORTABLE SIZE RESET / RETURN BUTTON ---
           Positioned(
-            bottom: 20, left: 20,
+            bottom: 20, left: 15,
             child: SizedBox(
-              height: 32, 
+              height: 44, // Increased from 32
               child: FloatingActionButton.extended(
                 heroTag: "reset",
                 onPressed: _resetMap,
-                elevation: 2,
+                elevation: 3,
                 backgroundColor: Colors.white,
-                extendedPadding: const EdgeInsets.symmetric(horizontal: 12),
-                icon: const Icon(Icons.map, size: 14, color: Colors.black87),
+                extendedPadding: const EdgeInsets.symmetric(horizontal: 16),
+                icon: const Icon(Icons.map, size: 18, color: Colors.black87),
                 label: Text(
                   _isViewingSpecificLcp ? "Return" : "Reset",
-                  style: const TextStyle(fontSize: 10, color: Colors.black87),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.black87),
                 ),
               ),
             ),
