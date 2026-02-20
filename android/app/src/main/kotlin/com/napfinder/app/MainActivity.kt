@@ -1,4 +1,4 @@
-package com.example.training
+package com.napfinder.app
 
 import io.flutter.embedding.android.FlutterActivity
 

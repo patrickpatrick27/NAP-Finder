@@ -1,5 +1,5 @@
-name: training
-description: "A new Flutter project."
+name: napfinder
+description: "NAP Finder - Locate Network Access Points efficiently."
 publish_to: 'none' 
 
 version: 1.0.37+1 
@@ -17,15 +17,14 @@ dependencies:
   http: ^1.2.1
   shared_preferences: ^2.2.2 
 
-  # --- Authentication (UPGRADED TO FIX CONFLICTS) ---
-  # These versions are now aligned to work together without crashing
+  # --- Authentication ---
   firebase_core: ^3.1.0
   firebase_auth: ^5.1.0
   cloud_firestore: ^5.0.1
   google_sign_in: ^6.2.1
 
   # --- Updates & Restarts ---
-  shorebird_code_push: ^2.0.0
+  # REMOVED: shorebird_code_push
   restart_app: ^1.3.2        
   package_info_plus: ^8.0.0  
   url_launcher: ^6.3.0       
@@ -55,12 +54,13 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^3.0.0
   flutter_launcher_icons: ^0.13.1
+  change_app_package_name: ^1.1.0 
 
 flutter:
   uses-material-design: true
   assets:
     - assets/credentials.json
-    - shorebird.yaml
+    # REMOVED: - shorebird.yaml
 
 # --- Icon Config ---
 flutter_launcher_icons:

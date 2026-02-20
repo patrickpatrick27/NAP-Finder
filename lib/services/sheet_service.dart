@@ -15,7 +15,7 @@ class SheetService {
     "AFC001", "AMC001", "AMC002",
     "IDC001", "IDC002", "IDC003",
     "MGC001", "MRC001", "MRC002",
-    "MZC001", "MZC002",
+    "MZC001", "MZC002", "EAC002",
     "TMC002", "TNC001"
   ];
 
@@ -46,7 +46,7 @@ class SheetService {
             String sheetName = _extractSheetNameFromRange(valueRange.range, i);
 
             if (valueRange.values != null && valueRange.values!.isNotEmpty) {
-              List<dynamic> sheetData = _parseSheetData(valueRange.values!, sheetName);
+              List<dynamic> sheetData = parseSheetData(valueRange.values!, sheetName);
               allCombinedData.addAll(sheetData);
               print("   ✅ Parsed $sheetName (${sheetData.length} items)");
             } else {
@@ -92,9 +92,10 @@ class SheetService {
       return jsonDecode(cachedString);
     }
     return []; 
+
   }
 
-  List<dynamic> _parseSheetData(List<List<dynamic>> rawRows, String sheetOrigin) {
+  List<dynamic> parseSheetData(List<List<dynamic>> rawRows, String sheetOrigin) {
     if (rawRows.length < 3) return []; 
     Map<String, Map<String, dynamic>> lcpMap = {};
     

@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_compass/flutter_compass.dart';
-import 'package:shorebird_code_push/shorebird_code_push.dart';
-import 'package:restart_app/restart_app.dart';
 import 'package:dio_cache_interceptor/dio_cache_interceptor.dart';
 
 import '../services/sheet_service.dart';
@@ -22,7 +20,6 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
-  final _updater = ShorebirdUpdater();
   
   List<dynamic> _allLcps = [];
   bool _isLoading = true;
@@ -37,8 +34,8 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
     _loadData();
     _startLiveLocationUpdates();
-    _checkForShorebirdUpdate();
     
+    // Checks for GitHub releases (APK updates) only
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) GithubUpdateService.checkForUpdate(context);
     });
@@ -54,6 +51,7 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
 
+    // Load cache first for speed
     List<dynamic> cached = await SheetService().loadFromCache();
     if (cached.isNotEmpty && mounted) {
       setState(() {
@@ -61,6 +59,7 @@ class _MainScreenState extends State<MainScreen> {
       });
     }
 
+    // Then fetch fresh data
     List<dynamic> freshData = await SheetService().fetchLcpData();
     
     if (mounted) {
@@ -82,31 +81,6 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
-  Future<void> _checkForShorebirdUpdate() async {
-    try {
-      final status = await _updater.checkForUpdate();
-      if (status == UpdateStatus.outdated) {
-        await _updater.update();
-        if (mounted) {
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => AlertDialog(
-              title: const Text("Patch Ready 🚀"),
-              content: const Text("Update downloaded. Restart now?"),
-              actions: [
-                TextButton(
-                  onPressed: () => Restart.restartApp(),
-                  child: const Text("Restart Now"),
-                ),
-              ],
-            ),
-          );
-        }
-      }
-    } catch (_) {}
-  }
-
   Future<void> _startLiveLocationUpdates() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) return;
@@ -119,7 +93,7 @@ class _MainScreenState extends State<MainScreen> {
 
     const LocationSettings locationSettings = LocationSettings(
       accuracy: LocationAccuracy.high,
-      distanceFilter: 3,
+      distanceFilter: 3, // Updates every 3 meters
     );
 
     _positionStream = Geolocator.getPositionStream(locationSettings: locationSettings).listen(
