@@ -21,6 +21,14 @@ class ListTab extends StatefulWidget {
 
 class _ListTabState extends State<ListTab> {
   final AuthService _authService = AuthService();
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = "";
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   void _showLogoutDialog() {
     showDialog(
@@ -46,20 +54,32 @@ class _ListTabState extends State<ListTab> {
     );
   }
 
-  Map<String, Map<String, List<dynamic>>> _getGroupedData() {
-    Map<String, Map<String, List<dynamic>>> grouped = {};
-    for (var lcp in widget.allLcps) {
-      String sheetName = (lcp['source_sheet'] ?? 'Unknown Sheet').toString();
-      String siteName = (lcp['site_name'] ?? 'Unknown Site').toString();
+  // --- FILTERING LOGIC ---
+  List<dynamic> _getFilteredData() {
+    if (_searchQuery.isEmpty) return widget.allLcps;
+    
+    return widget.allLcps.where((lcp) {
+      final name = lcp['lcp_name'].toString().toLowerCase();
+      final site = lcp['site_name'].toString().toLowerCase();
+      final olt = "olt ${lcp['olt_id']}".toLowerCase();
+      final query = _searchQuery.toLowerCase();
+      
+      return name.contains(query) || site.contains(query) || olt.contains(query);
+    }).toList();
+  }
 
-      if (!grouped.containsKey(sheetName)) grouped[sheetName] = {};
-      if (!grouped[sheetName]!.containsKey(siteName)) grouped[sheetName]![siteName] = [];
-      grouped[sheetName]![siteName]!.add(lcp);
+  // --- GROUPING LOGIC ---
+  Map<String, List<dynamic>> _groupData(List<dynamic> data) {
+    Map<String, List<dynamic>> grouped = {};
+    for (var lcp in data) {
+      String siteName = (lcp['site_name'] ?? 'Unknown Site').toString();
+      if (!grouped.containsKey(siteName)) grouped[siteName] = [];
+      grouped[siteName]!.add(lcp);
     }
     return grouped;
   }
 
-  Color _getOltColor(int oltId) {
+  Color _getOltColor(int? oltId) {
     switch (oltId) {
       case 1: return Colors.blue.shade700;
       case 2: return Colors.orange.shade800;
@@ -70,96 +90,135 @@ class _ListTabState extends State<ListTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.isLoading && widget.allLcps.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    final groupedData = _getGroupedData();
-    final sortedSheets = groupedData.keys.toList()..sort();
-    int totalNaps = widget.allLcps.length;
+    final filtered = _getFilteredData();
+    final grouped = _groupData(filtered);
+    final sortedSites = grouped.keys.toList()..sort();
 
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        backgroundColor: Colors.red.shade50,
-        elevation: 1,
-        centerTitle: true,
-        title: Column(
-          children: [
-            Text("Total NAPs: $totalNaps", 
-              style: const TextStyle(color: Colors.black, fontSize: 22, fontWeight: FontWeight.bold)),
-            const Text("ADMIN MODE", style: TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold)),
-          ],
-        ),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: false,
+        title: const Text("Site Directory", 
+          style: TextStyle(color: Colors.black, fontSize: 24, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
             onPressed: widget.onRefresh, 
-            icon: const Icon(Icons.refresh, color: Colors.black)
+            icon: const Icon(Icons.sync, color: Colors.blueGrey)
           ),
           IconButton(
             onPressed: _showLogoutDialog,
-            icon: const Icon(Icons.lock_open, color: Colors.red),
+            icon: const Icon(Icons.account_circle, color: Colors.redAccent),
           ),
         ],
-      ),
-      body: widget.allLcps.isEmpty 
-        ? const Center(child: Text("No data found"))
-        : ListView.builder(
-            padding: const EdgeInsets.only(bottom: 80, top: 10),
-            itemCount: sortedSheets.length,
-            itemBuilder: (context, index) {
-              String sheetName = sortedSheets[index];
-              Map<String, List<dynamic>> sitesInSheet = groupedData[sheetName]!;
-              List<String> sortedSites = sitesInSheet.keys.toList()..sort();
-              int totalBoxesInSheet = sitesInSheet.values.fold(0, (sum, list) => sum + list.length);
-
-              return Card(
-                elevation: 3,
-                margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                child: ExpansionTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.blueGrey.shade800,
-                    foregroundColor: Colors.white,
-                    radius: 18,
-                    child: Text(sheetName.substring(0, 1)),
-                  ),
-                  title: Text(sheetName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black87)),
-                  subtitle: Text("$totalBoxesInSheet NAPs in ${sortedSites.length} Locations", style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-                  childrenPadding: const EdgeInsets.only(left: 10, bottom: 10, right: 10),
-                  children: sortedSites.map((siteName) {
-                    List<dynamic> lcps = sitesInSheet[siteName]!;
-                    return Card(
-                      elevation: 0,
-                      color: Colors.grey[50],
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: ExpansionTile(
-                        title: Text(siteName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                        subtitle: Text("${lcps.length} items"),
-                        leading: const Icon(Icons.place, color: Colors.blueGrey, size: 20),
-                        children: lcps.map((lcp) {
-                          Color oltColor = _getOltColor(lcp['olt_id']);
-                          String subtitleText = "OLT ${lcp['olt_id']} • ${lcp['details']?['Distance'] ?? ''}";
-
-                          return ListTile(
-                            dense: true,
-                            contentPadding: const EdgeInsets.only(left: 20, right: 10),
-                            leading: Icon(Icons.router, color: oltColor, size: 18),
-                            title: Text(lcp['lcp_name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Text(subtitleText, style: TextStyle(fontSize: 11, color: Colors.grey[700])),
-                            trailing: const Icon(Icons.arrow_forward_ios, size: 10, color: Colors.grey),
-                            onTap: () {
-                               // PASS isAdmin: true because the entire app is gated
-                               DetailedSheet.show(context, lcp, isAdmin: true);
-                            },
-                          );
-                        }).toList(),
-                      ),
-                    );
-                  }).toList(),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(70),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (val) => setState(() => _searchQuery = val),
+              decoration: InputDecoration(
+                hintText: "Search NAP, Site, or OLT...",
+                prefixIcon: const Icon(Icons.search, color: Colors.blue),
+                suffixIcon: _searchQuery.isNotEmpty 
+                  ? IconButton(icon: const Icon(Icons.clear), onPressed: () {
+                      _searchController.clear();
+                      setState(() => _searchQuery = "");
+                    })
+                  : null,
+                filled: true,
+                fillColor: Colors.grey[100],
+                contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(15),
+                  borderSide: BorderSide.none,
                 ),
-              );
-            },
+              ),
+            ),
           ),
+        ),
+      ),
+      body: widget.isLoading && widget.allLcps.isEmpty
+        ? const Center(child: CircularProgressIndicator())
+        : filtered.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.search_off, size: 64, color: Colors.grey[300]),
+                  const SizedBox(height: 16),
+                  Text("No results for '$_searchQuery'", style: TextStyle(color: Colors.grey[600])),
+                ],
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.only(bottom: 100),
+              itemCount: sortedSites.length,
+              itemBuilder: (context, index) {
+                final siteName = sortedSites[index];
+                final lcps = grouped[siteName]!;
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // --- Site Header ---
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 16, 8),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.location_on, size: 14, color: Colors.blue),
+                          const SizedBox(width: 6),
+                          Text(
+                            siteName.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue[900],
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text("${lcps.length} NAPs", style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+                        ],
+                      ),
+                    ),
+                    // --- NAP List for this site ---
+                    ...lcps.map((lcp) => Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      child: Card(
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: Colors.grey[200]!),
+                        ),
+                        child: ListTile(
+                          onTap: () => DetailedSheet.show(context, lcp, isAdmin: true),
+                          leading: Container(
+                            width: 4,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              color: _getOltColor(lcp['olt_id']),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          title: Text(
+                            lcp['lcp_name'],
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                          subtitle: Text(
+                            "OLT ${lcp['olt_id']} • ${lcp['details']?['Distance'] ?? 'Unknown Dist.'}",
+                            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                          ),
+                          trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                        ),
+                      ),
+                    )).toList(),
+                  ],
+                );
+              },
+            ),
     );
   }
 }
