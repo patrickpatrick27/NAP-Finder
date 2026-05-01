@@ -49,19 +49,19 @@ class AuthWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
-      stream: _authService.userStream,
+      stream: _authService.verifiedUserStream,
       builder: (context, snapshot) {
         // 1. Loading State
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
 
-        // 2. Logged In State
+        // 2. Logged In & Verified State
         if (snapshot.hasData && snapshot.data != null) {
           return MainScreen(cacheStore: cacheStore);
         }
 
-        // 3. Logged Out State
+        // 3. Logged Out or Not Verified State
         return const LoginScreen();
       },
     );

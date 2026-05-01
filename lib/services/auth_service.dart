@@ -7,7 +7,13 @@ class AuthService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email']);
 
-  Stream<User?> get userStream => _auth.authStateChanges();
+  Stream<User?> get verifiedUserStream => _auth.authStateChanges().asyncMap((user) async {
+    if (user == null) return null;
+    // We check admin status here so the AuthWrapper knows for sure 
+    // before it decides which screen to show.
+    final admin = await isAdmin(user.email ?? "");
+    return admin ? user : null;
+  });
 
   Future<bool> isAdmin(String email) async {
     try {
