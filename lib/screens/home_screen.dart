@@ -12,7 +12,8 @@ import 'list_tab.dart';
 
 class MainScreen extends StatefulWidget {
   final CacheStore cacheStore;
-  const MainScreen({super.key, required this.cacheStore});
+  final String userRole;
+  const MainScreen({super.key, required this.cacheStore, required this.userRole});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -128,11 +129,13 @@ class _MainScreenState extends State<MainScreen> {
             currentLocation: _currentLocation,
             currentHeading: _currentHeading,
             onRefresh: _loadData,
+            userRole: widget.userRole,
           ),
           ListTab(
             allLcps: _allLcps,
             isLoading: _isLoading,
             onRefresh: _loadData,
+            userRole: widget.userRole,
           ),
         ],
       ),

@@ -15,6 +15,7 @@ class MapTab extends StatefulWidget {
   final LatLng? currentLocation;
   final double currentHeading;
   final VoidCallback onRefresh;
+  final String userRole;
 
   const MapTab({
     super.key,
@@ -24,6 +25,7 @@ class MapTab extends StatefulWidget {
     required this.currentLocation,
     required this.currentHeading,
     required this.onRefresh,
+    required this.userRole,
   });
 
   @override
@@ -147,7 +149,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     List<Marker> npMarkers = [];
     List<LatLng> points = [];
     Color oltColor = _getOltColor(lcp['olt_id']);
-    bool isAdmin = FirebaseAuth.instance.currentUser != null;
+    bool isAdmin = widget.userRole == 'admin';
 
     for (var np in lcp['nps']) {
       LatLng pos = LatLng(np['lat'], np['lng']);

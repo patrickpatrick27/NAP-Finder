@@ -7,12 +7,14 @@ class ListTab extends StatefulWidget {
   final List<dynamic> allLcps;
   final bool isLoading;
   final VoidCallback onRefresh;
+  final String userRole;
 
   const ListTab({
     super.key,
     required this.allLcps,
     required this.isLoading,
     required this.onRefresh,
+    required this.userRole,
   });
 
   @override
@@ -35,7 +37,7 @@ class _ListTabState extends State<ListTab> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Admin Options"),
-        content: Text("Logged in as ${FirebaseAuth.instance.currentUser?.email}.\n\nAdministrative access granted."),
+        content: Text("Logged in as ${FirebaseAuth.instance.currentUser?.email}.\n\nAccess Level: ${widget.userRole.toUpperCase()}"),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -101,18 +103,25 @@ class _ListTabState extends State<ListTab> {
   @override
   Widget build(BuildContext context) {
     final flatItems = _getFlattenedList();
+    final isAdmin = widget.userRole == 'admin';
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: isAdmin ? Colors.red.shade50 : Colors.white,
         elevation: 0,
         centerTitle: false,
-        title: const Text("Site Directory", 
-          style: TextStyle(color: Colors.black, fontSize: 24, fontWeight: FontWeight.bold)),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Site Directory", 
+              style: TextStyle(color: Colors.black, fontSize: 20, fontWeight: FontWeight.bold)),
+            Text(widget.userRole.toUpperCase(), style: TextStyle(color: isAdmin ? Colors.red : Colors.blueGrey, fontSize: 10, fontWeight: FontWeight.bold)),
+          ],
+        ),
         actions: [
           IconButton(onPressed: widget.onRefresh, icon: const Icon(Icons.sync, color: Colors.blueGrey)),
-          IconButton(onPressed: _showLogoutDialog, icon: const Icon(Icons.account_circle, color: Colors.redAccent)),
+          IconButton(onPressed: _showLogoutDialog, icon: Icon(Icons.account_circle, color: isAdmin ? Colors.redAccent : Colors.blueGrey)),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(70),
@@ -149,7 +158,6 @@ class _ListTabState extends State<ListTab> {
               itemBuilder: (context, index) {
                 final item = flatItems[index];
 
-                // --- OPTION A: RENDER SITE HEADER ---
                 if (item is Map && item.containsKey('isHeader')) {
                   return Padding(
                     padding: const EdgeInsets.fromLTRB(20, 25, 16, 8),
@@ -168,7 +176,6 @@ class _ListTabState extends State<ListTab> {
                   );
                 }
 
-                // --- OPTION B: RENDER NAP CARD ---
                 final lcp = item;
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
@@ -180,7 +187,7 @@ class _ListTabState extends State<ListTab> {
                     ),
                     child: ListTile(
                       dense: true,
-                      onTap: () => DetailedSheet.show(context, lcp, isAdmin: true),
+                      onTap: () => DetailedSheet.show(context, lcp, isAdmin: isAdmin),
                       leading: Container(
                         width: 4,
                         height: 24,

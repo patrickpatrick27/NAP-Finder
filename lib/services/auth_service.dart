@@ -7,28 +7,36 @@ class AuthService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email']);
 
-  Stream<User?> get verifiedUserStream => _auth.authStateChanges().asyncMap((user) async {
+  Stream<Map<String, dynamic>?> get verifiedUserStream => _auth.authStateChanges().asyncMap((user) async {
     if (user == null) return null;
-    // We check admin status here so the AuthWrapper knows for sure 
-    // before it decides which screen to show.
-    final admin = await isAdmin(user.email ?? "");
-    return admin ? user : null;
+    
+    // Fetch the specific role from Firestore
+    final role = await getUserRole(user.email ?? "");
+    
+    if (role != null) {
+      return {
+        'user': user,
+        'role': role,
+      };
+    }
+    return null;
   });
 
-  Future<bool> isAdmin(String email) async {
+  Future<String?> getUserRole(String email) async {
     try {
       final doc = await _firestore.collection('admins').doc(email).get();
-      return doc.exists;
+      if (doc.exists) {
+        return doc.data()?['role'] ?? 'admin';
+      }
+      return null;
     } catch (e) {
-      return false;
+      return null;
     }
   }
 
   Future<UserCredential?> signInWithGoogle() async {
     try {
-      // Disconnect to force account selection
       try { await _googleSignIn.disconnect(); } catch (_) {}
-      
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) return null;
 
