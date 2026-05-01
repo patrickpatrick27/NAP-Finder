@@ -17,9 +17,10 @@ class _LoginScreenState extends State<LoginScreen> {
     
     try {
       final userCred = await _authService.signInWithGoogle();
+      final user = userCred?.user;
+      final email = user?.email;
       
-      if (userCred?.user != null) {
-        final email = userCred!.user!.email!;
+      if (user != null && email != null) {
         final isAdmin = await _authService.isAdmin(email);
         
         if (!isAdmin) {
@@ -28,6 +29,8 @@ class _LoginScreenState extends State<LoginScreen> {
             _showError("Access Denied", "The account '$email' is not authorized to use this app.");
           }
         }
+        // If they ARE admin, the AuthWrapper in main.dart will automatically
+        // detect the change in verifiedUserStream and swap to the MainScreen.
       }
     } catch (e) {
       if (mounted) _showError("Login Error", e.toString());

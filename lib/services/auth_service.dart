@@ -34,6 +34,12 @@ class AuthService {
     }
   }
 
+  // Helper for backward compatibility
+  Future<bool> isAdmin(String email) async {
+    final role = await getUserRole(email);
+    return role != null;
+  }
+
   Future<UserCredential?> signInWithGoogle() async {
     try {
       try { await _googleSignIn.disconnect(); } catch (_) {}

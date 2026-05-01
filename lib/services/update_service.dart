@@ -24,13 +24,15 @@ class GithubUpdateService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        String tagName = data['tag_name']; 
+        String? tagName = data['tag_name']; 
+        if (tagName == null) return;
+
         String latestVersion = tagName.replaceAll('v', '');
         
         String? apkUrl;
-        List<dynamic> assets = data['assets'];
+        List<dynamic> assets = data['assets'] ?? [];
         for (var asset in assets) {
-          if (asset['name'].toString().endsWith('.apk')) {
+          if (asset['name'].toString().toLowerCase().endsWith('.apk')) {
             apkUrl = asset['browser_download_url']; 
             break;
           }
@@ -39,7 +41,7 @@ class GithubUpdateService {
         if (apkUrl == null) return;
 
         bool isNewer = _isNewer(latestVersion, currentVersion);
-        if (isNewer) {
+        if (isNewer && context.mounted) {
           _showUpdateDialog(context, latestVersion, apkUrl);
         }
       } 
@@ -50,18 +52,30 @@ class GithubUpdateService {
 
   static bool _isNewer(String latest, String current) {
     try {
-      List<int> l = latest.split('.').map(int.parse).toList();
-      List<int> c = current.split('.').map(int.parse).toList();
+      // Robust parsing: handles 1.0 vs 1.0.0 vs 1.0.0+1
+      List<String> lParts = latest.split('+')[0].split('.');
+      List<String> cParts = current.split('+')[0].split('.');
 
-      for (int i = 0; i < l.length; i++) {
-        if (i >= c.length) return true;
-        if (l[i] > c[i]) return true;
-        if (l[i] < c[i]) return false;
+      int maxLength = lParts.length > cParts.length ? lParts.length : cParts.length;
+
+      for (int i = 0; i < maxLength; i++) {
+        int lNum = i < lParts.length ? (int.tryParse(lParts[i]) ?? 0) : 0;
+        int cNum = i < cParts.length ? (int.tryParse(cParts[i]) ?? 0) : 0;
+
+        if (lNum > cNum) return true;
+        if (lNum < cNum) return false;
       }
+
+      // If main versions are equal, check build numbers (+1, +2 etc)
+      int lBuild = latest.contains('+') ? (int.tryParse(latest.split('+')[1]) ?? 0) : 0;
+      int cBuild = current.contains('+') ? (int.tryParse(current.split('+')[1]) ?? 0) : 0;
+      
+      return lBuild > cBuild;
+
     } catch (e) {
-      print("⚠️ Version parse error: $e");
+      print("⚠️ Version comparison error: $e");
+      return false;
     }
-    return false;
   }
 
   static void _showUpdateDialog(BuildContext context, String version, String apkUrl) {
@@ -90,7 +104,6 @@ class _UpdateProgressDialogState extends State<_UpdateProgressDialog> {
   double _progress = 0.0;
   bool _isDownloading = false;
   final Dio _dio = Dio();
-  final FlutterAppInstaller _installer = FlutterAppInstaller();
 
   Future<void> _startDownload() async {
     setState(() {
@@ -101,6 +114,10 @@ class _UpdateProgressDialogState extends State<_UpdateProgressDialog> {
     try {
       Directory tempDir = await getTemporaryDirectory();
       String savePath = "${tempDir.path}/update.apk";
+
+      // Delete old file if exists
+      final file = File(savePath);
+      if (await file.exists()) await file.delete();
 
       await _dio.download(
         widget.apkUrl, 
@@ -115,16 +132,22 @@ class _UpdateProgressDialogState extends State<_UpdateProgressDialog> {
         },
       );
 
+      if (!mounted) return;
       setState(() => _status = "Installing...");
-      await _installer.installApk(filePath: savePath);
+      
+      // Using constructor-based instance for v1.x of flutter_app_installer
+      final installer = FlutterAppInstaller();
+      await installer.installApk(filePath: savePath);
       
       if (mounted) Navigator.pop(context);
 
     } catch (e) {
-      setState(() {
-        _status = "Error: $e";
-        _isDownloading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _status = "Error: $e";
+          _isDownloading = false;
+        });
+      }
     }
   }
 
