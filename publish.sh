@@ -61,4 +61,8 @@ gh release create "$TAG" "$NEW_NAME" \
     --notes "$RELEASE_NOTES" \
     --latest
 
-echo "✅ DONE! Version $TAG is live."
+# 10. Sync to Main Branch
+echo "🌍 Pushing current changes to remote main branch..."
+git push origin HEAD:main --quiet
+
+echo "✅ DONE! Version $TAG is live and code is synced to main."
