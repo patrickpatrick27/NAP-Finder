@@ -14,7 +14,20 @@ void main() async {
 
   // Initialize Firebase for Auth
   try {
-    await Firebase.initializeApp();
+    if (kIsWeb) {
+      await Firebase.initializeApp(
+        options: const FirebaseOptions(
+          apiKey: "AIzaSyC4pw0OjelWyiqjdIVYaoO-hnPTkfTk_HI",
+          appId: "1:364801125437:android:d165060bf7d6bcb5638e54",
+          messagingSenderId: "364801125437",
+          projectId: "mtop-nap-finder",
+          authDomain: "mtop-nap-finder.firebaseapp.com",
+          storageBucket: "mtop-nap-finder.firebasestorage.app",
+        ),
+      );
+    } else {
+      await Firebase.initializeApp();
+    }
   } catch (e) {
     debugPrint("Firebase init note: $e");
   }

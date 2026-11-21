@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -5,7 +6,10 @@ import 'package:google_sign_in/google_sign_in.dart';
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email']);
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    clientId: kIsWeb ? '364801125437-jsp4lrgac6eme33plrp4fccqit1m2jlc.apps.googleusercontent.com' : null,
+    scopes: ['email'],
+  );
 
   Stream<Map<String, dynamic>?> get verifiedUserStream => _auth.authStateChanges().asyncMap((user) async {
     if (user == null) return null;
