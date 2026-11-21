@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
@@ -36,10 +37,12 @@ class _MainScreenState extends State<MainScreen> {
     _loadData();
     _startLiveLocationUpdates();
     
-    // Checks for GitHub releases (APK updates) only
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) GithubUpdateService.checkForUpdate(context);
-    });
+    // Checks for GitHub releases (APK updates) on mobile only
+    if (!kIsWeb) {
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) GithubUpdateService.checkForUpdate(context);
+      });
+    }
   }
 
   @override

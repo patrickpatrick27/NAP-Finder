@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -12,11 +13,20 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize Firebase for Auth
-  await Firebase.initializeApp();
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    debugPrint("Firebase init note: $e");
+  }
 
-  final dir = await getApplicationDocumentsDirectory();
-  final cachePath = '${dir.path}/map_tiles';
-  final cacheStore = FileCacheStore(cachePath);
+  final CacheStore cacheStore;
+  if (kIsWeb) {
+    cacheStore = MemCacheStore();
+  } else {
+    final dir = await getApplicationDocumentsDirectory();
+    final cachePath = '${dir.path}/map_tiles';
+    cacheStore = FileCacheStore(cachePath);
+  }
 
   runApp(MyApp(cacheStore: cacheStore));
 }

@@ -4,7 +4,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map_cache/flutter_map_cache.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:dio_cache_interceptor/dio_cache_interceptor.dart';
 import '../widgets/detailed_sheet.dart';
 

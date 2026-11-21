@@ -1,11 +1,11 @@
 {
-    "name": "training",
-    "short_name": "training",
+    "name": "NAP Finder",
+    "short_name": "NAP Finder",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0f172a",
+    "theme_color": "#0284c7",
+    "description": "Network Access Point (NAP / LCP) Field Operations Locator.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
