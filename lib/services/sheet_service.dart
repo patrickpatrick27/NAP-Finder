@@ -7,12 +7,12 @@ import 'package:googleapis_auth/auth_io.dart';
 class SheetService {
   static const String _spreadsheetId = '1x_IsBXD0Tky4lZwg9lrIgUVR7s_rbfnC0c2L9adOwdI';
   
-  // UPDATED: Changed version to '_v4' to force the app to ignore old cache and fetch fresh data
-  static const String _cacheKey = 'lcp_data_multi_sheet_v4_with_amc002'; 
+  // UPDATED: Changed version to '_v5' to force the app to ignore old cache and fetch fresh data with AFC002
+  static const String _cacheKey = 'lcp_data_multi_sheet_v5_with_afc002'; 
 
   static const List<String> _targetSheetNames = [
     "TGY001", "TGY002", "EAC001",
-    "AFC001", "AMC001", "AMC002",
+    "AFC001", "AFC002", "AMC001", "AMC002",
     "IDC001", "IDC002", "IDC003",
     "MGC001", "MRC001", "MRC002",
     "MZC001", "MZC002", "EAC002",
