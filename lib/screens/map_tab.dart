@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
@@ -260,20 +261,26 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
               ),
               onTap: (_, __) => _searchFocusNode.unfocus(),
               onPositionChanged: (pos, hasGesture) {
-                if (hasGesture) setState(() => _isFollowingUser = false);
+                if (hasGesture && _isFollowingUser) {
+                  setState(() => _isFollowingUser = false);
+                }
               },
             ),
             children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.davepatrick.napboxlocator',
-                tileProvider: CachedTileProvider(
-                  store: widget.cacheStore, 
-                  maxStale: const Duration(days: 365), 
-                ),
-                tileDisplay: const TileDisplay.fadeIn(
-                  duration: Duration(milliseconds: 400),
-                ),
+                tileProvider: kIsWeb
+                    ? NetworkTileProvider()
+                    : CachedTileProvider(
+                        store: widget.cacheStore,
+                        maxStale: const Duration(days: 365),
+                      ),
+                tileDisplay: kIsWeb
+                    ? const TileDisplay.instantaneous()
+                    : const TileDisplay.fadeIn(
+                        duration: Duration(milliseconds: 300),
+                      ),
               ),
               MarkerClusterLayerWidget(
                 options: MarkerClusterLayerOptions(
@@ -281,7 +288,13 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                   size: const Size(40, 40),
                   alignment: Alignment.center,
                   padding: const EdgeInsets.all(50),
-                  maxZoom: 15, 
+                  maxZoom: 15,
+                  animationsOptions: const AnimationsOptions(
+                    zoom: kIsWeb ? Duration.zero : Duration(milliseconds: 300),
+                    fitBound: kIsWeb ? Duration.zero : Duration(milliseconds: 300),
+                    centerMarker: kIsWeb ? Duration.zero : Duration(milliseconds: 300),
+                    spiderfy: Duration(milliseconds: 300),
+                  ),
                   markers: _markers,
                   builder: (context, markers) {
                     return Container(
