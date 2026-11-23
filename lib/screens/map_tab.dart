@@ -248,8 +248,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    const double statusBarHeight = 48.0;
-    const double searchTop = 56.0;
+    const double searchTop = 44.0;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
@@ -337,21 +336,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
             ],
           ),
 
-          // Compact Status Bar Strip (Eliminates iOS Safari WebKit blur with zero wasted space)
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: statusBarHeight,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(bottom: BorderSide(color: Colors.black12, width: 0.5)),
-              ),
-            ),
-          ),
-
-          // Search Bar
+          // Search Bar positioned right up on the top transition space
           Positioned(
             top: searchTop,
             left: 15,

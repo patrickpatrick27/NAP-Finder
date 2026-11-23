@@ -58,11 +58,10 @@ The web build is automated via `build_vercel.sh` and `vercel.json`.
 * **Instantaneous Tile Rendering**: Uses `TileDisplay.instantaneous` on web to bypass the 400ms opacity rasterization pipeline across visible tiles during multi-level zooms.
 * **Native Browser C++ Caching**: Uses `NetworkTileProvider()` on web to let Safari/Chrome handle HTTP tile caching and hardware-accelerated image decoding directly, eliminating Dart memory heap overhead.
 * **Zero-Delay Cluster Expansion**: Configured `AnimationsOptions(zoom: Duration.zero)` on web to bypass 500ms main-thread clustering animations during rapid zoom transitions.
-* **iOS Safari Status Bar & Compact Header Layout**:
+* **iOS Safari Status Bar & Elevated Search Card Layout**:
   * Configured `apple-mobile-web-app-status-bar-style: default` and `viewport-fit=cover` in `web/index.html`.
-  * Anchored a compact 48px solid white status bar strip (`statusBarHeight = 48.0`) with a 0.5px hairline divider directly at `y = 0` in `map_tab.dart`.
-  * Because WebKit detects an opaque surface at the top edge, it turns off its automated translucent gradient blur scrim completely while using zero unnecessary vertical screen space.
-  * Floats the search card tightly at `top: 56.0` (8px margin below the status bar) with the map starting immediately below the clock.
+  * Positioned the floating search card directly up at `top: 44.0`, seating it immediately below the Dynamic Island / clock line to naturally cover the top transition space.
+  * Eliminates artificial status bar strips and dead vertical margins, providing 100% full-screen map coverage while masking blur artifacts directly with the elevated search card.
   * Enforces `SystemUiOverlayStyle.dark` to keep status bar text and battery indicators crisp and legible.
 
 ### 2. Android APK Release (GitHub Actions)
