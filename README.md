@@ -7,6 +7,8 @@ A high-performance, offline-first Flutter application (Web PWA & Android APK) de
 ## ✨ Core Features
 
 * **📍 Offline Vector Maps**: Map tiles are dynamically cached for zero-network field navigation (in-memory for Web PWA, file-store for Android).
+* **⚡ High-Performance Web Engine**: Zero-lag map gestures on web with throttled position handlers, instantaneous tile rendering, and native browser C++ tile fetching.
+* **📱 iOS PWA Hardening**: Native status bar styling with solid safe-area anchors, zero WebKit blur scrims, and dynamic notch/Dynamic Island offsets.
 * **☁️ Live Google Sheets Sync**: Reads directly from live master fiber spreadsheets via Google Sheets API v4 across 18 target municipal OLT sheets (`TGY001` through `TNC001`).
 * **🧠 Ragged Row Parsing**: Detects OLT blocks, ODF ports, distance metrics, and multi-column coordinate pairs with strict bounding box filtering.
 * **🧭 Live Heading & Compass**: Real-time geolocation with digital compass heading to orient technicians directly to the physical pole/pedestal.
@@ -50,6 +52,18 @@ The web build is automated via `build_vercel.sh` and `vercel.json`.
 * **Production URL**: `https://nap-finder.vercel.app`
 * **Environment Variable**: Add `CREDENTIALS_JSON` in Vercel Project Settings -> Environment Variables containing the full JSON contents of the service account key.
 * **Build Script**: `build_vercel.sh` automatically installs Flutter stable, injects `CREDENTIALS_JSON` into `assets/credentials.json`, and compiles the release web bundle (`flutter build web --release --no-tree-shake-icons`).
+
+#### ⚡ Web Performance & iOS PWA Architecture
+* **Throttled Gesture Rebuilds**: `onPositionChanged` in `map_tab.dart` evaluates `_isFollowingUser` before invoking `setState()`, preventing continuous 60fps widget tree rebuilds during mouse scroll and trackpad pinch zooming.
+* **Instantaneous Tile Rendering**: Uses `TileDisplay.instantaneous` on web to bypass the 400ms opacity rasterization pipeline across visible tiles during multi-level zooms.
+* **Native Browser C++ Caching**: Uses `NetworkTileProvider()` on web to let Safari/Chrome handle HTTP tile caching and hardware-accelerated image decoding directly, eliminating Dart memory heap overhead.
+* **Zero-Delay Cluster Expansion**: Configured `AnimationsOptions(zoom: Duration.zero)` on web to bypass 500ms main-thread clustering animations during rapid zoom transitions.
+* **iOS Safari Status Bar Scrim Hardening**:
+  * Configured `apple-mobile-web-app-status-bar-style: default` and `theme-color: #ffffff` in `web/index.html`.
+  * Anchored a solid white safe-area background box (`statusBarHeight = topPadding > 0 ? topPadding : (isIOS ? 48.0 : 0.0)`) directly at `y = 0` in `map_tab.dart`.
+  * Because WebKit detects an opaque surface at the top edge, it turns off its automated translucent gradient blur scrim completely.
+  * Dynamically offsets the floating search card (`top: statusBarHeight + 10`) to eliminate notch and Dynamic Island collisions across all iPhone generations.
+  * Locks status bar text and battery indicators to high-contrast dark mode via `SystemUiOverlayStyle.dark`.
 
 ### 2. Android APK Release (GitHub Actions)
 Tagged git releases (`v*`) automatically trigger `.github/workflows/release.yml`:
