@@ -1,6 +1,7 @@
 import 'dart:math' as math;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:latlong2/latlong.dart';
@@ -247,9 +248,15 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      resizeToAvoidBottomInset: false,
-      body: Stack(
+    final topPadding = MediaQuery.of(context).padding.top;
+    final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
+    final statusBarHeight = topPadding > 0 ? topPadding : (isIOS ? 48.0 : 0.0);
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        resizeToAvoidBottomInset: false,
+        body: Stack(
         children: [
           FlutterMap(
             mapController: _mapController,
@@ -331,9 +338,21 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
             ],
           ),
 
+          // Solid Status Bar Background (Eliminates iOS Safari WebKit blur/scrim)
+          if (statusBarHeight > 0)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: statusBarHeight,
+              child: const ColoredBox(color: Colors.white),
+            ),
+
           // Search Bar
           Positioned(
-            top: 50, left: 15, right: 15,
+            top: statusBarHeight + 10,
+            left: 15,
+            right: 15,
             child: Column(
               children: [
                 Card(
@@ -428,6 +447,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }
