@@ -1,5 +1,5 @@
 import 'dart:math' as math;
-import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:flutter_map/flutter_map.dart';
@@ -249,8 +249,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
-    final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
-    final statusBarHeight = topPadding > 0 ? topPadding : (isIOS ? 48.0 : 0.0);
+    final searchTop = (topPadding > 0 && topPadding <= 60) ? topPadding + 6 : 50.0;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
@@ -338,19 +337,9 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
             ],
           ),
 
-          // Solid Status Bar Background (Eliminates iOS Safari WebKit blur/scrim)
-          if (statusBarHeight > 0)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: statusBarHeight,
-              child: const ColoredBox(color: Colors.white),
-            ),
-
           // Search Bar
           Positioned(
-            top: statusBarHeight + 10,
+            top: searchTop,
             left: 15,
             right: 15,
             child: Column(
