@@ -58,12 +58,11 @@ The web build is automated via `build_vercel.sh` and `vercel.json`.
 * **Instantaneous Tile Rendering**: Uses `TileDisplay.instantaneous` on web to bypass the 400ms opacity rasterization pipeline across visible tiles during multi-level zooms.
 * **Native Browser C++ Caching**: Uses `NetworkTileProvider()` on web to let Safari/Chrome handle HTTP tile caching and hardware-accelerated image decoding directly, eliminating Dart memory heap overhead.
 * **Zero-Delay Cluster Expansion**: Configured `AnimationsOptions(zoom: Duration.zero)` on web to bypass 500ms main-thread clustering animations during rapid zoom transitions.
-* **iOS Safari Status Bar Scrim Hardening**:
-  * Configured `apple-mobile-web-app-status-bar-style: default` and `theme-color: #ffffff` in `web/index.html`.
-  * Anchored a solid white safe-area background box (`statusBarHeight = topPadding > 0 ? topPadding : (isIOS ? 48.0 : 0.0)`) directly at `y = 0` in `map_tab.dart`.
-  * Because WebKit detects an opaque surface at the top edge, it turns off its automated translucent gradient blur scrim completely.
-  * Dynamically offsets the floating search card (`top: statusBarHeight + 10`) to eliminate notch and Dynamic Island collisions across all iPhone generations.
-  * Locks status bar text and battery indicators to high-contrast dark mode via `SystemUiOverlayStyle.dark`.
+* **iOS Safari Status Bar & Full-Bleed Viewport**:
+  * Configured `apple-mobile-web-app-status-bar-style: default` and `viewport-fit=cover` in `web/index.html`.
+  * Removed artificial top white overlays and forced theme-color bars, allowing map tiles to extend 100% full-bleed edge-to-edge across the entire screen.
+  * Dynamically calculates floating search card placement (`searchTop = (topPadding > 0 && topPadding <= 60) ? topPadding + 6 : 50.0`) so the card floats cleanly right beneath the Dynamic Island or notch without wasted vertical space.
+  * Enforces `SystemUiOverlayStyle.dark` to keep status bar text and battery indicators crisp and legible.
 
 ### 2. Android APK Release (GitHub Actions)
 Tagged git releases (`v*`) automatically trigger `.github/workflows/release.yml`:
